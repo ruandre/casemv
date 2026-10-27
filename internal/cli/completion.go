@@ -1,7 +1,10 @@
 package cli
 
 import (
+	_ "embed"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -18,8 +21,12 @@ type completer struct {
 	configFile *string
 }
 
+//go:embed completion.fish
+var fishScript string
+
 func registerCompletions(cmd *cobra.Command, c completer) {
 	cmd.ValidArgsFunction = c.completeArgs
+	cmd.PersistentPreRunE = useOwnFishScript
 	err := errors.Join(
 		cmd.RegisterFlagCompletionFunc(conventionKey, completeConventions),
 		cmd.MarkFlagFilename("config", "yaml", "yml"),
@@ -27,6 +34,37 @@ func registerCompletions(cmd *cobra.Command, c completer) {
 	if err != nil {
 		panic("casemv: register completions: " + err.Error())
 	}
+}
+
+// useOwnFishScript makes `completion fish` print casemv's script instead of
+// cobra's, which drops directory and extension filters. It swaps RunE because
+// cobra adds its completion command only when called; a permanent one makes
+// cobra add help, then offer it as a first-argument completion.
+func useOwnFishScript(cmd *cobra.Command, _ []string) error {
+	if isFishCompletionCommand(cmd) {
+		cmd.RunE = writeFishScript
+	}
+	return nil
+}
+
+func isFishCompletionCommand(cmd *cobra.Command) bool {
+	parent := cmd.Parent()
+	return cmd.Name() == "fish" && parent != nil && parent.Name() == "completion" && parent.Parent() == cmd.Root()
+}
+
+func writeFishScript(cmd *cobra.Command, _ []string) error {
+	noDescriptions, err := cmd.Flags().GetBool("no-descriptions")
+	if err != nil {
+		return fmt.Errorf("fish completion: %w", err)
+	}
+	script := fishScript
+	if noDescriptions {
+		script = strings.Replace(script, "__complete ", "__completeNoDesc ", 1)
+	}
+	if _, err := io.WriteString(cmd.OutOrStdout(), script); err != nil {
+		return fmt.Errorf("write fish completion: %w", err)
+	}
+	return nil
 }
 
 func (c completer) completeArgs(

@@ -93,8 +93,9 @@ casemv completion fish > ~/.config/fish/completions/casemv.fish
 ```
 
 The first argument completes conventions, plus directories when a default
-convention is set. Fish also offers files where only directories fit. A
-directory named `completion` needs a path: `casemv ./completion`.
+convention is set. Fish gets casemv's own script, which filters directories and
+`--config` files the way bash and zsh do. A directory named `completion` needs a
+path: `casemv ./completion`.
 
 ## Development
 

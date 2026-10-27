@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"slices"
@@ -9,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/ruandre/casemv/internal/cli"
 )
 
 var allConventions = []string{"camel", "kebab", "lower", "pascal", "screaming", "sentence", "snake", "title", "train"}
@@ -140,5 +143,73 @@ func TestCompletionScriptsWithAConfigFile(t *testing.T) {
 				t.Errorf("completion %s printed no script: %q", shell, got.out)
 			}
 		})
+	}
+}
+
+func TestFishCompletionScriptHonoursFilters(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		want    []string
+		without []string
+	}{
+		{"default", nil, []string{"__fish_complete_directories", "__casemv_complete_extensions", "__complete "}, []string{"__completeNoDesc", "not supported"}},
+		{"no descriptions", []string{"--no-descriptions"}, []string{"__completeNoDesc "}, []string{"__complete "}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := runCLI(t, "", append([]string{"completion", "fish"}, tc.args...)...)
+			if got.err != nil {
+				t.Fatalf("completion fish: %v", got.err)
+			}
+			assertScript(t, got.out, tc.want, tc.without)
+		})
+	}
+}
+
+func assertScript(t *testing.T, script string, want, without []string) {
+	t.Helper()
+	for _, fragment := range want {
+		if !strings.Contains(script, fragment) {
+			t.Errorf("script is missing %q", fragment)
+		}
+	}
+	for _, fragment := range without {
+		if strings.Contains(script, fragment) {
+			t.Errorf("script contains %q", fragment)
+		}
+	}
+}
+
+// Only fish gets casemv's own script; the others must stay exactly cobra's.
+func TestOtherShellScriptsAreCobras(t *testing.T) {
+	generators := map[string]func(*cobra.Command, *bytes.Buffer) error{
+		"bash":       func(c *cobra.Command, b *bytes.Buffer) error { return c.GenBashCompletionV2(b, true) },
+		"zsh":        func(c *cobra.Command, b *bytes.Buffer) error { return c.GenZshCompletion(b) },
+		"powershell": func(c *cobra.Command, b *bytes.Buffer) error { return c.GenPowerShellCompletionWithDesc(b) },
+	}
+	for shell, generate := range generators {
+		t.Run(shell, func(t *testing.T) {
+			var want bytes.Buffer
+			if err := generate(cli.NewRootCmd(), &want); err != nil {
+				t.Fatal(err)
+			}
+			got := runCLI(t, "", "completion", shell)
+			if got.err != nil {
+				t.Fatalf("completion %s: %v", shell, got.err)
+			}
+			if got.out != want.String() {
+				t.Errorf("completion %s differs from cobra's generator", shell)
+			}
+		})
+	}
+}
+
+func TestFirstArgumentNeverOffersSubcommands(t *testing.T) {
+	got := complete(t, configHomeWith(t, "convention: kebab\n"), "c")
+	for _, unwanted := range []string{"completion", "help"} {
+		if slices.Contains(got.values, unwanted) {
+			t.Errorf("completions %q offer subcommand %q", got.values, unwanted)
+		}
 	}
 }

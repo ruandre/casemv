@@ -61,6 +61,19 @@ func TestBashCompletion(t *testing.T) {
 	}
 }
 
+func TestFishCompletionScriptParses(t *testing.T) {
+	fish, err := exec.LookPath("fish")
+	if err != nil {
+		t.Skip("fish not installed")
+	}
+	script := casemv(t, "", "completion", "fish").requireSuccess(t).stdout
+	cmd := exec.CommandContext(t.Context(), fish, "--no-execute")
+	cmd.Stdin = strings.NewReader(script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("fish --no-execute: %v\n%s", err, out)
+	}
+}
+
 func TestFishCompletion(t *testing.T) {
 	fish, err := exec.LookPath("fish")
 	if err != nil {
@@ -74,8 +87,11 @@ func TestFishCompletion(t *testing.T) {
 		reject []string
 	}{
 		{"conventions", "", "casemv s", []string{"screaming", "sentence", "snake"}, []string{"src/"}},
-		// cobra's fish script lacks directory filtering, so files are offered too.
-		{"target after a convention", "", "casemv kebab ", []string{"docs/", "src/"}, nil},
+		{"target after a convention", "", "casemv kebab ", []string{"docs/", "src/"}, []string{"notes.txt", "conf.yaml"}},
+		{"directory with a space", "", "casemv kebab My", []string{"My Docs/"}, nil},
+		{"config flag value", "", "casemv --config ", []string{"conf.yaml"}, []string{"notes.txt"}},
+		{"flag names", "", "casemv --con", []string{"--config", "--convention"}, nil},
+		{"nothing after the target", "", "casemv kebab docs ", nil, []string{"docs/", "notes.txt"}},
 		{"default adds directories", "convention: kebab\n", "casemv s", []string{"screaming", "src/"}, nil},
 		{"default, directory by prefix", "convention: kebab\n", "casemv d", []string{"docs/"}, []string{"notes.txt"}},
 		{"convention flag value", "", "casemv -c k", []string{"kebab"}, nil},
@@ -88,11 +104,11 @@ func TestFishCompletion(t *testing.T) {
 	}
 }
 
-// runShell runs a shell in a tree holding docs, src, "My Docs", and notes.txt,
+// runShell runs a shell in a tree holding docs, src, "My Docs", notes.txt, and conf.yaml,
 // with casemv first on PATH and config, when non-empty, as the user config.
 func runShell(t *testing.T, shell, config string, args ...string) []string {
 	t.Helper()
-	root := makeTree(t, "docs/", "src/", "My Docs/", "notes.txt")
+	root := makeTree(t, "docs/", "src/", "My Docs/", "notes.txt", "conf.yaml")
 	configHome := t.TempDir()
 	if config != "" {
 		mustMkdir(t, filepath.Join(configHome, "casemv"))
