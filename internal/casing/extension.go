@@ -27,3 +27,14 @@ func splitBase(name string, isDir bool) (dots, stem, ext string) {
 }
 
 func containsSpace(s string) bool { return strings.ContainsFunc(s, unicode.IsSpace) }
+
+// LowerExtension formats names like its Convention, and also lowercases a
+// file's extension. A stem left unchanged ("___.TXT") still gets it lowered.
+type LowerExtension struct {
+	Convention Convention
+}
+
+// Format converts a base name like Convention.Format, with the extension lowercased.
+func (l LowerExtension) Format(name string, isDir bool) string {
+	return l.Convention.format(name, isDir, lowerWord)
+}

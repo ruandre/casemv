@@ -85,23 +85,29 @@ func styleFor(c Convention) style {
 // Format converts a base name to the convention. It panics if c is not one of
 // the values ParseConvention returns.
 //
-// A file's extension is preserved verbatim; a directory has no extension, so
-// "1. Something" becomes "1-something" under Kebab instead of stopping at the
-// dot. Leading dots are kept, so ".gitignore" stays hidden. Names whose stem
-// holds no word runes ("___.txt") are returned unchanged rather than reduced to
-// a bare extension.
+// A file's extension is preserved verbatim (LowerExtension lowercases it); a
+// directory has no extension, so "1. Something" becomes "1-something" under
+// Kebab instead of stopping at the dot. Leading dots are kept, so ".gitignore"
+// stays hidden. Names whose stem holds no word runes ("___.txt") are returned
+// unchanged rather than reduced to a bare extension.
 func (c Convention) Format(name string, isDir bool) string {
-	dots, stem, ext := splitBase(name, isDir)
-	formatted := c.formatStem(stem)
-	if formatted == "" && stem != "" {
-		return name
-	}
-	return dots + formatted + ext
+	return c.format(name, isDir, keepExtension)
 }
 
 // FormatText converts a free-standing string, with no extension handling. It
 // panics if c is not one of the values ParseConvention returns.
 func (c Convention) FormatText(text string) string { return c.formatStem(text) }
+
+func (c Convention) format(name string, isDir bool, renderExtension func(string) string) string {
+	dots, stem, ext := splitBase(name, isDir)
+	formatted := c.formatStem(stem)
+	if formatted == "" && stem != "" {
+		formatted = stem
+	}
+	return dots + formatted + renderExtension(ext)
+}
+
+func keepExtension(ext string) string { return ext }
 
 func (c Convention) formatStem(stem string) string {
 	if c == Lower {

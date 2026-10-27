@@ -5,9 +5,13 @@ import (
 	"context"
 	"path/filepath"
 	"slices"
-
-	"github.com/ruandre/casemv/internal/casing"
 )
+
+// Namer gives the name an entry should have; casing.Convention and
+// casing.LowerExtension implement it.
+type Namer interface {
+	Format(name string, isDir bool) string
+}
 
 // Rename is one planned rename. Both paths share a parent directory.
 type Rename struct {
@@ -25,13 +29,13 @@ type Plan struct {
 func (p Plan) IsEmpty() bool { return len(p.Renames) == 0 }
 
 // Build scans the target tree and returns the renames needed to bring every
-// eligible name to conv. Deeper entries are ordered first, so a directory is
+// eligible name to the one namer gives. Deeper entries are ordered first, so a directory is
 // renamed only after its contents and every recorded source path is still valid
 // when its turn comes.
 //
 // Target-name collisions are detected up front: Build returns *CollisionError
 // and an empty plan rather than renaming part of the tree.
-func Build(ctx context.Context, opts Options, conv casing.Convention) (Plan, error) {
+func Build(ctx context.Context, opts Options, namer Namer) (Plan, error) {
 	if err := opts.validate(); err != nil {
 		return Plan{}, err
 	}
@@ -43,7 +47,7 @@ func Build(ctx context.Context, opts Options, conv casing.Convention) (Plan, err
 	changed := make(map[string]string, len(t.entries))
 	pending := make([]entry, 0, len(t.entries))
 	for _, e := range t.entries {
-		newName := conv.Format(e.name, e.isDir)
+		newName := namer.Format(e.name, e.isDir)
 		if newName == e.name {
 			continue
 		}

@@ -26,6 +26,9 @@ const exitInterrupted = 130
 // argsWithTarget counts convention plus target directory.
 const argsWithTarget = 2
 
+// textIncompatibleFlags act on files, which --text never touches.
+var textIncompatibleFlags = []string{"dry-run", "quiet", "lower-ext"}
+
 // Execute runs the root command and returns the process exit code. An interrupt
 // cancels the run between renames rather than part-way through one.
 func Execute() int {
@@ -66,9 +69,9 @@ func NewRootCmd() *cobra.Command {
 		Use:   "casemv <convention> [target]",
 		Short: "Rename files and directories to a naming convention",
 		Long: "casemv renames the files in a directory to a naming convention such as\n" +
-			"kebab-case or snake_case. File extensions are preserved; directory names are\n" +
-			"converted whole, so \"1. Something\" becomes \"1-something\" rather than being\n" +
-			"split at the dot.\n\nConventions: " + casing.Names(),
+			"kebab-case or snake_case. File extensions are preserved unless --lower-ext is\n" +
+			"set; directory names are converted whole, so \"1. Something\" becomes\n" +
+			"\"1-something\" rather than being split at the dot.\n\nConventions: " + casing.Names(),
 		Example: "  casemv kebab\n" +
 			"  casemv snake ./docs --recursive --dir\n" +
 			"  casemv pascal ./src --dry-run --exclude '*.min.js'\n" +
@@ -95,6 +98,7 @@ func NewRootCmd() *cobra.Command {
 		"skip entries matching a glob; repeatable, matched against the path when it contains a slash")
 	flags.BoolP("dry-run", "n", false, "print the planned renames without touching the filesystem")
 	flags.BoolP("quiet", "q", false, "suppress progress and summary output")
+	flags.BoolP("lower-ext", "x", false, "lowercase file extensions as well")
 	flags.Bool("text", false, "convert lines from stdin to stdout instead of renaming files")
 
 	// Not PersistentPreRunE: subcommands (completion, __complete) have none of
@@ -146,14 +150,8 @@ func resolveSettings(v *viper.Viper, args []string) (settings, error) {
 	}
 	text := v.GetBool("text")
 	if text {
-		if len(args) > 1 {
-			return settings{}, errors.New("--text does not accept a target argument")
-		}
-		if v.GetBool("dry-run") {
-			return settings{}, errors.New("--text cannot be used with --dry-run")
-		}
-		if v.GetBool("quiet") {
-			return settings{}, errors.New("--text cannot be used with --quiet")
+		if err := validateTextMode(v, args); err != nil {
+			return settings{}, err
 		}
 	}
 	target := "."
@@ -161,14 +159,27 @@ func resolveSettings(v *viper.Viper, args []string) (settings, error) {
 		target = args[1]
 	}
 	return settings{
-		convention: convention,
-		target:     target,
-		recursive:  v.GetBool("recursive"),
-		dirs:       v.GetBool("dir"),
-		hidden:     v.GetBool("hidden"),
-		exclude:    v.GetStringSlice("exclude"),
-		dryRun:     v.GetBool("dry-run"),
-		quiet:      v.GetBool("quiet"),
-		text:       text,
+		convention:     convention,
+		target:         target,
+		recursive:      v.GetBool("recursive"),
+		dirs:           v.GetBool("dir"),
+		hidden:         v.GetBool("hidden"),
+		exclude:        v.GetStringSlice("exclude"),
+		dryRun:         v.GetBool("dry-run"),
+		quiet:          v.GetBool("quiet"),
+		lowerExtension: v.GetBool("lower-ext"),
+		text:           text,
 	}, nil
+}
+
+func validateTextMode(v *viper.Viper, args []string) error {
+	if len(args) > 1 {
+		return errors.New("--text does not accept a target argument")
+	}
+	for _, flag := range textIncompatibleFlags {
+		if v.GetBool(flag) {
+			return fmt.Errorf("--text cannot be used with --%s", flag)
+		}
+	}
+	return nil
 }

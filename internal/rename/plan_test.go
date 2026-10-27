@@ -16,7 +16,7 @@ import (
 )
 
 // build plans against root with given options, failing test on error.
-func build(t *testing.T, opts rename.Options, convention casing.Convention) rename.Plan {
+func build(t *testing.T, opts rename.Options, convention rename.Namer) rename.Plan {
 	t.Helper()
 	plan, err := rename.Build(t.Context(), opts, convention)
 	if err != nil {
@@ -26,7 +26,7 @@ func build(t *testing.T, opts rename.Options, convention casing.Convention) rena
 }
 
 // apply plans, applies renames, failing test on error.
-func apply(t *testing.T, opts rename.Options, convention casing.Convention) int {
+func apply(t *testing.T, opts rename.Options, convention rename.Namer) int {
 	t.Helper()
 	plan := build(t, opts, convention)
 	done, err := plan.Apply(t.Context(), nil)
@@ -696,4 +696,24 @@ func fileBodies(t *testing.T, dir string) []string {
 	}
 	slices.Sort(bodies)
 	return bodies
+}
+
+func TestLowerExtensionRenamesExtensionOnlyChanges(t *testing.T) {
+	root := makeTree(t, "My File.TXT", "notes.MD", "kept.txt", "Sub Dir.D/Inner.JSON")
+
+	apply(t, rename.Options{Root: root, Recursive: true, IncludeDirs: true}, casing.LowerExtension{Convention: casing.Kebab})
+
+	assertTree(t, root, "my-file.txt", "notes.md", "kept.txt", "sub-dir-d/", "sub-dir-d/inner.json")
+}
+
+func TestLowerExtensionCollisionAbortsBeforeAnythingIsRenamed(t *testing.T) {
+	root := makeTree(t, "report.PDF", "report.pdf")
+	before := snapshot(t, root)
+
+	_, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.LowerExtension{Convention: casing.Kebab})
+
+	if _, ok := errors.AsType[*rename.CollisionError](err); !ok {
+		t.Fatalf("Build error = %v, want *rename.CollisionError", err)
+	}
+	assertTree(t, root, before...)
 }

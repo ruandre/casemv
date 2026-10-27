@@ -344,3 +344,10 @@ func startTextMode(t *testing.T) textProcess {
 	}
 	return textProcess{cmd: cmd, stdin: stdin, stdout: stdout, stderr: &stderr}
 }
+
+func TestLowerExtensionFlag(t *testing.T) {
+	root := makeTree(t, "My File.TXT", "notes.MD", "Sub Dir/Inner.JSON")
+	casemv(t, "", "kebab", root, "-r", "-D", "-x").requireSuccess(t)
+
+	assertTree(t, root, "my-file.txt", "notes.md", "sub-dir/", "sub-dir/inner.json")
+}

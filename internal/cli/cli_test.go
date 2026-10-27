@@ -222,6 +222,46 @@ func TestEnvironmentSuppliesDefaults(t *testing.T) {
 	assertTree(t, root, "Sub Dir/", "Sub Dir/my-file.txt")
 }
 
+func TestLowerExtensionSources(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		env    map[string]string
+		config string
+	}{
+		{"long flag", []string{"--lower-ext"}, nil, ""},
+		{"short flag", []string{"-x"}, nil, ""},
+		{"environment", nil, map[string]string{"CASEMV_LOWER_EXT": "true"}, ""},
+		{"config file", nil, nil, "lower-ext: true\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := makeTree(t, "My File.TXT", "Sub Dir.D/")
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			args := append([]string{"kebab", root, "--dir"}, tc.args...)
+			if tc.config != "" {
+				args = append(args, "--config", writeConfig(t, tc.config))
+			}
+
+			if got := runCLI(t, "", args...); got.err != nil {
+				t.Fatalf("run: %v (output %q)", got.err, got.out)
+			}
+			assertTree(t, root, "my-file.txt", "sub-dir-d/")
+		})
+	}
+}
+
+func TestExtensionsAreKeptWithoutLowerExtension(t *testing.T) {
+	root := makeTree(t, "My File.TXT")
+
+	if got := runCLI(t, "", "kebab", root); got.err != nil {
+		t.Fatalf("run: %v (output %q)", got.err, got.out)
+	}
+	assertTree(t, root, "my-file.TXT")
+}
+
 func TestRepeatedExcludeFlags(t *testing.T) {
 	root := makeTree(t, "Keep One.txt", "Skip One.log", "Skip Two.tmp")
 	got := runCLI(t, "", "kebab", root, "-e", "*.log", "-e", "*.tmp")
@@ -247,7 +287,7 @@ func TestHelpListsEveryConvention(t *testing.T) {
 	if got.err != nil {
 		t.Fatalf("run: %v", got.err)
 	}
-	for _, want := range []string{"kebab", "screaming", "1. Something", "--dry-run"} {
+	for _, want := range []string{"kebab", "screaming", "1. Something", "--dry-run", "-x, --lower-ext"} {
 		if !strings.Contains(got.out, want) {
 			t.Errorf("help output is missing %q", want)
 		}
@@ -491,6 +531,7 @@ func TestTextModeRejectsIncompatibleOptions(t *testing.T) {
 		{"rejects target argument", []string{"kebab", "some-target", "--text"}, "--text does not accept a target argument"},
 		{"rejects dry-run", []string{"kebab", "--text", "--dry-run"}, "--text cannot be used with --dry-run"},
 		{"rejects quiet", []string{"kebab", "--text", "--quiet"}, "--text cannot be used with --quiet"},
+		{"rejects lower-ext", []string{"kebab", "--text", "--lower-ext"}, "--text cannot be used with --lower-ext"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -617,6 +658,7 @@ func TestInvalidBooleanSettingIsAnError(t *testing.T) {
 	}{
 		{"env dry run yes", map[string]string{"CASEMV_DRY_RUN": "yes"}, ""},
 		{"env recursive on", map[string]string{"CASEMV_RECURSIVE": "on"}, ""},
+		{"env lower-ext yes", map[string]string{"CASEMV_LOWER_EXT": "yes"}, ""},
 		{"config dry run yes", nil, "dry-run: yes\n"},
 	}
 	for _, tc := range tests {

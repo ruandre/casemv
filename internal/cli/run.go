@@ -59,7 +59,7 @@ func run(ctx context.Context, w io.Writer, in io.Reader, s settings) error {
 
 func renameTree(ctx context.Context, out *output, s settings) error {
 	start := time.Now()
-	plan, err := rename.Build(ctx, s.scanOptions(), s.convention)
+	plan, err := rename.Build(ctx, s.scanOptions(), s.namer())
 	if err != nil {
 		return err
 	}

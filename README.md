@@ -35,6 +35,7 @@ Words split on separators, case humps, and acronyms (`XMLHttpRequest` →
 | `-e, --exclude`   | Skip glob matches and their subtrees; repeat |
 | `-n, --dry-run`   | Print plan, change nothing                   |
 | `-q, --quiet`     | No output                                    |
+| `-x, --lower-ext` | Lowercase file extensions too                |
 | `--text`          | Convert stdin lines to stdout                |
 | `--config`        | Config file path                             |
 
@@ -44,13 +45,15 @@ the target, otherwise the base name.
 ```sh
 casemv snake ./docs -r -D             # whole tree, directories too
 casemv pascal ./src -n -e '*.min.js'  # preview, skip minified files
+casemv kebab . -x                     # My File.TXT → my-file.txt
 echo 'My File' | casemv kebab --text  # my-file
 ```
 
 ## Behaviour
 
-- **Extensions are kept verbatim**: `My File.TXT` → `my-file.TXT`. Directories
-  have no extension: `1. Something` → `1-something`.
+- **Extensions are kept verbatim**: `My File.TXT` → `my-file.TXT`, or
+  `my-file.txt` with `--lower-ext`. Directories have no extension:
+  `1. Something` → `1-something`.
 - **Hidden stays hidden.** Names with no word characters (`___.txt`) stay as
   they are. Invalid UTF-8 bytes are kept.
 - **Nothing is lost.**
