@@ -5,7 +5,7 @@ Rename files and directories to a naming convention. Linux. Go port of
 
 ```sh
 go install github.com/ruandre/casemv@latest
-casemv <convention> [target] [flags]
+casemv [convention] [target] [flags]
 ```
 
 ## Conventions
@@ -27,17 +27,18 @@ Words split on separators, case humps, and acronyms (`XMLHttpRequest` →
 
 ## Flags
 
-| Flag              | Effect                                       |
-| ----------------- | -------------------------------------------- |
-| `-r, --recursive` | Descend into subdirectories                  |
-| `-D, --dir`       | Rename directories too                       |
-| `-H, --hidden`    | Include dot-prefixed entries                 |
-| `-e, --exclude`   | Skip glob matches and their subtrees; repeat |
-| `-n, --dry-run`   | Print plan, change nothing                   |
-| `-q, --quiet`     | No output                                    |
-| `-x, --lower-ext` | Lowercase file extensions too                |
-| `--text`          | Convert stdin lines to stdout                |
-| `--config`        | Config file path                             |
+| Flag               | Effect                                       |
+| ------------------ | -------------------------------------------- |
+| `-r, --recursive`  | Descend into subdirectories                  |
+| `-D, --dir`        | Rename directories too                       |
+| `-H, --hidden`     | Include dot-prefixed entries                 |
+| `-e, --exclude`    | Skip glob matches and their subtrees; repeat |
+| `-n, --dry-run`    | Print plan, change nothing                   |
+| `-q, --quiet`      | No output                                    |
+| `-x, --lower-ext`  | Lowercase file extensions too                |
+| `-c, --convention` | Convention when none is given as an argument |
+| `--text`           | Convert stdin lines to stdout                |
+| `--config`         | Config file path                             |
 
 Exclude patterns use `path.Match`. With a slash, they match the path relative to
 the target, otherwise the base name.
@@ -73,9 +74,15 @@ Order: flags, then `CASEMV_<FLAG>` environment variables (e.g.
 unknown keys are errors.
 
 ```yaml
+convention: kebab # then a bare `casemv` or `casemv ./docs` converts to kebab
+lower-ext: true
 recursive: true
 exclude: ["*.min.js", node_modules]
 ```
+
+A convention given as an argument overrides the default. A lone argument naming
+a convention is the convention, anything else is the target, so a directory
+named like a convention needs a path: `casemv ./kebab`.
 
 ## Shell completion
 
@@ -85,8 +92,9 @@ casemv completion zsh > "${fpath[1]}/_casemv"
 casemv completion fish > ~/.config/fish/completions/casemv.fish
 ```
 
-The first argument completes conventions, the second directories. Fish also
-offers files where only directories fit.
+The first argument completes conventions, plus directories when a default
+convention is set. Fish also offers files where only directories fit. A
+directory named `completion` needs a path: `casemv ./completion`.
 
 ## Development
 

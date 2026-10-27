@@ -287,7 +287,7 @@ func TestHelpListsEveryConvention(t *testing.T) {
 	if got.err != nil {
 		t.Fatalf("run: %v", got.err)
 	}
-	for _, want := range []string{"kebab", "screaming", "1. Something", "--dry-run", "-x, --lower-ext"} {
+	for _, want := range []string{"kebab", "screaming", "1. Something", "--dry-run", "-x, --lower-ext", "-c, --convention", "[convention] [target]"} {
 		if !strings.Contains(got.out, want) {
 			t.Errorf("help output is missing %q", want)
 		}

@@ -74,6 +74,7 @@ func TestCompletion(t *testing.T) {
 		noFiles = cobra.ShellCompDirectiveNoFileComp
 		dirs    = cobra.ShellCompDirectiveFilterDirs
 	)
+	withDefault := "convention: kebab\n"
 	tests := []struct {
 		name   string
 		config string
@@ -83,15 +84,29 @@ func TestCompletion(t *testing.T) {
 	}{
 		{"conventions first", "", nil, []string{""}, completion{allConventions, noFiles}},
 		{"conventions by prefix", "", nil, []string{"s"}, completion{[]string{"screaming", "sentence", "snake"}, noFiles}},
-		{"no directories for the convention", "", nil, []string{"d"}, completion{nil, noFiles}},
+		{"no directory without a default", "", nil, []string{"d"}, completion{nil, noFiles}},
 		{"target after a convention", "", nil, []string{"kebab", ""}, completion{nil, dirs}},
 		{"nothing after the target", "", nil, []string{"kebab", "docs", ""}, completion{nil, noFiles}},
 
-		{"text, no directories", "", nil, []string{"--text", "s"}, completion{[]string{"screaming", "sentence", "snake"}, noFiles}},
-		{"text, nothing after a convention", "", nil, []string{"--text", "kebab", ""}, completion{nil, noFiles}},
+		{"default adds directories", withDefault, nil, []string{""}, completion{append(slices.Clone(allConventions), "docs/", "src/"), noFiles}},
+		{"default, shared prefix", withDefault, nil, []string{"s"}, completion{[]string{"screaming", "sentence", "snake", "src/"}, noFiles}},
+		{"default, directory prefix uses the shell", withDefault, nil, []string{"d"}, completion{nil, dirs}},
+		{"default, path uses the shell", withDefault, nil, []string{"./"}, completion{nil, dirs}},
+		{"default, hidden prefix uses the shell", withDefault, nil, []string{"."}, completion{nil, dirs}},
+		{"default, target after a convention", withDefault, nil, []string{"snake", ""}, completion{nil, dirs}},
+		{"default, nothing after a target", withDefault, nil, []string{"docs", ""}, completion{nil, noFiles}},
+		{"default from environment", "", map[string]string{"CASEMV_CONVENTION": "kebab"}, []string{"s"}, completion{[]string{"screaming", "sentence", "snake", "src/"}, noFiles}},
+		{"default from flag", "", nil, []string{"-c", "kebab", "s"}, completion{[]string{"screaming", "sentence", "snake", "src/"}, noFiles}},
 
-		{"broken config still completes", "bogus: true\n", nil, []string{"s"}, completion{[]string{"screaming", "sentence", "snake"}, noFiles}},
-		{"real config keys do not break it", "recursive: true\ndir: true\n", nil, []string{"k"}, completion{[]string{"kebab"}, noFiles}},
+		{"text, no directories", withDefault, nil, []string{"--text", "s"}, completion{[]string{"screaming", "sentence", "snake"}, noFiles}},
+		{"text, nothing after a convention", withDefault, nil, []string{"--text", "kebab", ""}, completion{nil, noFiles}},
+
+		{"broken config is no default", "bogus: true\n", nil, []string{"s"}, completion{[]string{"screaming", "sentence", "snake"}, noFiles}},
+		{"invalid default is no default", "convention: kebabb\n", nil, []string{"d"}, completion{nil, noFiles}},
+		{"real config keys do not break it", "convention: kebab\nlower-ext: true\nrecursive: true\n", nil, []string{"k"}, completion{[]string{"kebab"}, noFiles}},
+
+		{"convention flag value", "", nil, []string{"--convention", ""}, completion{allConventions, noFiles}},
+		{"convention flag value by prefix", "", nil, []string{"-c", "k"}, completion{[]string{"kebab"}, noFiles}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -113,7 +128,7 @@ func TestCompletion(t *testing.T) {
 }
 
 func TestCompletionScriptsWithAConfigFile(t *testing.T) {
-	configHome := configHomeWith(t, "recursive: true\ndir: true\n")
+	configHome := configHomeWith(t, "convention: kebab\nlower-ext: true\n")
 	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
 		t.Run(shell, func(t *testing.T) {
 			got := runCLIWithConfigHome(t, configHome, "", "completion", shell)

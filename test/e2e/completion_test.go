@@ -47,6 +47,10 @@ func TestBashCompletion(t *testing.T) {
 	}{
 		{"conventions", "", []string{"casemv", "s"}, []string{"screaming", "sentence", "snake"}, []string{"src"}},
 		{"target after a convention", "", []string{"casemv", "kebab", ""}, []string{"docs", "src"}, []string{"notes.txt"}},
+		{"default adds directories", "convention: kebab\n", []string{"casemv", "s"}, []string{"screaming", "src/"}, nil},
+		{"default, directory by prefix", "convention: kebab\n", []string{"casemv", "d"}, []string{"docs"}, []string{"notes.txt"}},
+		{"default, directory with a space", "convention: kebab\n", []string{"casemv", "My"}, []string{"My Docs"}, nil},
+		{"default and other keys", "convention: kebab\nlower-ext: true\n", []string{"casemv", "k"}, []string{"kebab"}, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -72,6 +76,9 @@ func TestFishCompletion(t *testing.T) {
 		{"conventions", "", "casemv s", []string{"screaming", "sentence", "snake"}, []string{"src/"}},
 		// cobra's fish script lacks directory filtering, so files are offered too.
 		{"target after a convention", "", "casemv kebab ", []string{"docs/", "src/"}, nil},
+		{"default adds directories", "convention: kebab\n", "casemv s", []string{"screaming", "src/"}, nil},
+		{"default, directory by prefix", "convention: kebab\n", "casemv d", []string{"docs/"}, []string{"notes.txt"}},
+		{"convention flag value", "", "casemv -c k", []string{"kebab"}, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

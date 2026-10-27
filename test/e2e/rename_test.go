@@ -351,3 +351,15 @@ func TestLowerExtensionFlag(t *testing.T) {
 
 	assertTree(t, root, "my-file.txt", "notes.md", "sub-dir/", "sub-dir/inner.json")
 }
+
+func TestConfigFileSetsDefaultConvention(t *testing.T) {
+	root := makeTree(t, "My File.TXT")
+	config := filepath.Join(t.TempDir(), "casemv.yaml")
+	if err := os.WriteFile(config, []byte("convention: kebab\nlower-ext: true\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	casemv(t, "", root, "--config", config).requireSuccess(t)
+
+	assertTree(t, root, "my-file.txt")
+}

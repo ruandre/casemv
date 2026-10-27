@@ -2,6 +2,7 @@
 package cli
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -66,20 +67,23 @@ func NewRootCmd() *cobra.Command {
 	var configFile string
 
 	cmd := &cobra.Command{
-		Use:   "casemv <convention> [target]",
+		Use:   "casemv [convention] [target]",
 		Short: "Rename files and directories to a naming convention",
 		Long: "casemv renames the files in a directory to a naming convention such as\n" +
 			"kebab-case or snake_case. File extensions are preserved unless --lower-ext is\n" +
 			"set; directory names are converted whole, so \"1. Something\" becomes\n" +
-			"\"1-something\" rather than being split at the dot.\n\nConventions: " + casing.Names(),
+			"\"1-something\" rather than being split at the dot.\n\n" +
+			"The convention may be omitted when --convention, CASEMV_CONVENTION, or the\n" +
+			"config file sets a default; a lone argument naming a convention is the\n" +
+			"convention, anything else is the target.\n\nConventions: " + casing.Names(),
 		Example: "  casemv kebab\n" +
 			"  casemv snake ./docs --recursive --dir\n" +
 			"  casemv pascal ./src --dry-run --exclude '*.min.js'\n" +
+			"  casemv ./docs -c kebab -x\n" +
 			"  echo 'My File Name' | casemv kebab --text",
-		Args:              cobra.RangeArgs(1, argsWithTarget),
-		Version:           buildVersion(),
-		SilenceErrors:     true,
-		ValidArgsFunction: completer{v: v, configFile: &configFile}.completeArgs,
+		Args:          cobra.MaximumNArgs(argsWithTarget),
+		Version:       buildVersion(),
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			s, err := resolveSettings(v, args)
 			if err != nil {
@@ -91,6 +95,7 @@ func NewRootCmd() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&configFile, "config", "", "config file (default: $XDG_CONFIG_HOME/casemv/casemv.yaml)")
+	flags.StringP(conventionKey, "c", "", "convention to use when no convention argument is given")
 	flags.BoolP("recursive", "r", false, "rename entries in subdirectories as well")
 	flags.BoolP("dir", "D", false, "rename directories as well as files")
 	flags.BoolP("hidden", "H", false, "include dot-prefixed entries (skipped by default)")
@@ -100,6 +105,8 @@ func NewRootCmd() *cobra.Command {
 	flags.BoolP("quiet", "q", false, "suppress progress and summary output")
 	flags.BoolP("lower-ext", "x", false, "lowercase file extensions as well")
 	flags.Bool("text", false, "convert lines from stdin to stdout instead of renaming files")
+
+	registerCompletions(cmd, completer{v: v, configFile: &configFile})
 
 	// Not PersistentPreRunE: subcommands (completion, __complete) have none of
 	// these flags, so loading config for them rejects every key.
@@ -134,7 +141,10 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command, configFile string) error {
 	if err := v.ReadInConfig(); err != nil && !isMissingDefaultConfig(err, configFile) {
 		return fmt.Errorf("read config: %w", err)
 	}
-	return validateSettings(v, cmd)
+	if err := validateSettings(v, cmd); err != nil {
+		return err
+	}
+	return validateDefaultConvention(v)
 }
 
 // isMissingDefaultConfig reports absent optional config; an explicit --config must exist.
@@ -144,22 +154,19 @@ func isMissingDefaultConfig(err error, configFile string) bool {
 }
 
 func resolveSettings(v *viper.Viper, args []string) (settings, error) {
-	convention, err := casing.ParseConvention(args[0])
+	parsed, err := parsePositional(args, v.GetString(conventionKey))
 	if err != nil {
 		return settings{}, err
 	}
 	text := v.GetBool("text")
 	if text {
-		if err := validateTextMode(v, args); err != nil {
+		if err := validateTextMode(v, parsed.target); err != nil {
 			return settings{}, err
 		}
 	}
-	target := "."
-	if len(args) == argsWithTarget {
-		target = args[1]
-	}
+	target := cmp.Or(parsed.target, ".")
 	return settings{
-		convention:     convention,
+		convention:     parsed.convention,
 		target:         target,
 		recursive:      v.GetBool("recursive"),
 		dirs:           v.GetBool("dir"),
@@ -172,8 +179,8 @@ func resolveSettings(v *viper.Viper, args []string) (settings, error) {
 	}, nil
 }
 
-func validateTextMode(v *viper.Viper, args []string) error {
-	if len(args) > 1 {
+func validateTextMode(v *viper.Viper, target string) error {
+	if target != "" {
 		return errors.New("--text does not accept a target argument")
 	}
 	for _, flag := range textIncompatibleFlags {
