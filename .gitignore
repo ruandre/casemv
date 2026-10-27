@@ -1,0 +1,14 @@
+/bin/
+*.out
+*.test
+
+AGENTS.md
+CLAUDE.md
+HANDOFF.md
+.claude/
+.agents/
+.worktrees/
+
+# local mise overrides
+mise.local.toml
+mise.*.local.toml

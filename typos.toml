@@ -1,0 +1,6 @@
+[files]
+extend-exclude = ["go.mod", "go.sum", "mise.lock"]
+
+# "Café" split by an invalid byte or a replacement char in fixtures
+[default.extend-words]
+caf = "caf"

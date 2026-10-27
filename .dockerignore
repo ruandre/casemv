@@ -1,0 +1,6 @@
+.git
+.claude
+.agents
+.worktrees
+*.md
+bin

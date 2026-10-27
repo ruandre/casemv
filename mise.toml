@@ -1,0 +1,114 @@
+# Single source of truth for toolchain and tasks: `mise tasks` lists them.
+# Machine-specific overrides go in mise.local.toml (gitignored).
+min_version = "2026.9.17"
+
+# Tools that ship an agent skill (hk) link it into .agents/skills for the
+# version installed here.
+[settings]
+skills.dir = ".agents/skills"
+skills.auto_sync = true
+skills.prune = true
+
+[tools]
+go = "1.27.3"
+hk = "2.8.2"
+pkl = "0.32.2"
+golangci-lint = "2.15.0"
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+betterleaks = "1.9.0"
+typos = "1.51.1"
+taplo = "0.10.0"
+"go:golang.org/x/vuln/cmd/govulncheck" = "1.9.0"
+
+[env]
+HK_MISE = "1"
+
+# --- Develop ---
+
+[tasks.setup]
+description = "First-time setup after clone: toolchain, Go modules, git hooks"
+run = ["mise install", "go mod download", "hk install --mise"]
+
+[tasks.fix]
+description = "Apply every formatter and linter fix hk knows"
+run = "hk fix --all"
+
+[tasks.fmt]
+description = "Format Go sources in place"
+run = "golangci-lint fmt ./..."
+
+# --- Verify ---
+
+[tasks.check]
+description = "Report formatting and lint violations without changing anything"
+run = "hk check --all"
+
+[tasks.lint]
+description = "Run golangci-lint; extra flags (e.g. --fix) go to golangci-lint"
+run = "golangci-lint run ./..."
+
+[tasks.vuln]
+description = "Report known vulnerabilities reachable from this code"
+run = "govulncheck ./..."
+
+[tasks.ci]
+description = "Run everything CI runs (check, vuln, tests), plus the Docker suite"
+depends = ["check", "vuln", "test-race", "test-e2e", "test-docker"]
+
+# --- Test ---
+
+[tasks.test]
+description = "Run unit and CLI tests; flags after -- go to go test"
+usage = 'arg "[flags]" var=#true help="Extra go test flags, after --"'
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+eval "flags=(${usage_flags:-})"
+go test -count=1 "${flags[@]}" ./...
+'''
+
+[tasks.test-race]
+description = "Run the unit and CLI tests under the race detector"
+run = "go test -race -count=1 ./..."
+
+[tasks.test-e2e]
+description = "Drive the built binary against real directory trees"
+run = "go test -tags e2e -count=1 ./test/e2e/..."
+
+[tasks.test-docker]
+description = "Run every suite inside a disposable --rm container"
+run = "go test -tags docker -count=1 -timeout 20m ./test/docker/..."
+
+[tasks.cover]
+description = "Report per-package statement coverage"
+run = "go test -cover -count=1 ./internal/..."
+
+[tasks.fuzz]
+description = "Fuzz one name-formatter target"
+usage = '''
+arg "[target]" default="FuzzFormatKeepsOpaqueBytes" help="Fuzz function name"
+arg "[duration]" default="30s" help="Fuzz time, as go test -fuzztime"
+'''
+run = 'go test -run "^${usage_target?}$" -fuzz "^${usage_target?}$" -fuzztime "${usage_duration?}" ./internal/casing/'
+
+[tasks.bench]
+description = "Benchmark name formatting and plan building"
+run = "go test -run '^$' -bench . -benchmem ./internal/..."
+
+# --- Build ---
+
+[tasks.build]
+description = "Build the binary into bin/"
+sources = ["go.mod", "go.sum", "**/*.go"]
+outputs = ["bin/casemv"]
+run = "go build -o bin/casemv ."
+
+[tasks.install]
+description = "Install the binary into ~/.local/bin, or CASEMV_INSTALL_DIR if set"
+# mise points GOBIN at the per-version Go dir, which is off PATH outside this project.
+run = 'GOBIN="${CASEMV_INSTALL_DIR:-$HOME/.local/bin}" go install .'
+
+[tasks.clean]
+description = "Remove build output and the test cache"
+run = ["rm -rf bin", "go clean -testcache"]

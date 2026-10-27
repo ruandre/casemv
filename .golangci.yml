@@ -1,0 +1,147 @@
+version: "2"
+
+run:
+  build-tags:
+    - e2e
+    - docker
+
+linters:
+  default: all
+  disable:
+    # Deprecated aliases of linters still enabled under their new names.
+    - exhaustruct
+    - gomodguard
+    - wsl
+    # Blank-line and return-spacing style; gofumpt owns layout.
+    - nlreturn
+    - wsl_v5
+    # Reject idiomatic Go.
+    - exhaustruct_v5 # zero values are a deliberate Go feature
+    - noinlineerr # forbids `if err := f(); err != nil`
+    - nonamedreturns # named results document what a function returns
+    - varnamelen # forbids conventional short names such as r, w, t
+    # Policies this project does not follow, on purpose.
+    - err113 # sentinel errors pay off only when callers branch on them
+    - gochecknoglobals # read-only tables and test fixtures are package-level
+    - gosmopolitan # non-Latin names are test data by design
+    - paralleltest # many tests use t.Setenv and t.Chdir, which forbid t.Parallel
+    - testpackage # e2e and docker suites are black-box packages already
+    - wrapcheck # errors get context once, at the boundary that knows the operation
+
+  settings:
+    cyclop:
+      max-complexity: 10
+
+    gocognit:
+      min-complexity: 15
+
+    nestif:
+      min-complexity: 4
+
+    mnd:
+      # File modes read as themselves.
+      ignored-functions:
+        - ^os\.(Chmod|Mkdir|MkdirAll|OpenFile|WriteFile)$
+
+    godot:
+      scope: all
+
+    depguard:
+      rules:
+        main:
+          list-mode: strict
+          allow:
+            - $gostd
+            - github.com/ruandre/casemv
+            - github.com/spf13/cobra
+            - github.com/spf13/viper
+            - golang.org/x/sys/unix
+            - golang.org/x/text
+          deny:
+            - pkg: github.com/pkg/errors
+              desc: use the standard library's errors package and %w
+
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - performance
+        - style
+
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-unused: false
+
+    revive:
+      rules:
+        - name: exported
+        - name: package-comments
+        - name: early-return
+        - name: indent-error-flow
+        - name: error-strings
+        - name: error-return
+        - name: errorf
+        - name: context-as-argument
+        - name: context-keys-type
+        - name: unexported-return
+        - name: var-naming
+        - name: range-val-address
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: waitgroup-by-value
+
+    staticcheck:
+      checks:
+        - all
+
+  exclusions:
+    generated: lax
+    presets:
+      - common-false-positives
+    rules:
+      # Table-driven tests repeat fixture strings by design, helpers keep
+      # parameters for readability at the call site, long table rows stay on
+      # one line, and names such as "A A A.txt" are fixtures.
+      - path: _test\.go
+        linters:
+          - dupword
+          - goconst
+          - lll
+          - unparam
+      # Fixtures live in per-test temporary directories, where modes guard nothing.
+      - path: (_test\.go|internal/testtree/)
+        linters:
+          - gosec
+        text: "G30[126]:"
+
+formatters:
+  enable:
+    - gci
+    - gofumpt
+    - goimports
+
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/ruandre/casemv)
+      no-inline-comments: true
+
+    goimports:
+      local-prefixes:
+        - github.com/ruandre/casemv

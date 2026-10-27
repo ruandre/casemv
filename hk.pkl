@@ -1,0 +1,50 @@
+amends "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Builtins.pkl"
+
+// Tools resolve through mise (HK_MISE=1), so hooks use the versions pinned in mise.toml.
+// hk serves its own package from its binary (checksummed in mise.lock); a ::sha256: pin makes hk 2.8.2 fail.
+
+exclude = List(
+  ".agents/**",
+  ".claude/**",
+  "mise.lock"
+)
+
+local linters = new Mapping<String, Step> {
+  ["merge-conflict"] = Builtins.check_merge_conflict
+  ["trailing-whitespace"] = Builtins.trailing_whitespace
+  ["newlines"] = Builtins.newlines
+  ["typos"] = Builtins.typos
+  ["secrets"] = Builtins.betterleaks
+  ["taplo"] = Builtins.taplo
+  ["actionlint"] = Builtins.actionlint
+  ["go-mod-tidy"] = Builtins.gomod_tidy
+  // Formatters (gofumpt, goimports, gci) come from .golangci.yml.
+  ["golangci-lint-fmt"] = Builtins.golangci_lint_fmt
+  ["golangci-lint"] = (Builtins.golangci_lint) {
+    depends = "golangci-lint-fmt"
+  }
+}
+
+hooks {
+  ["pre-commit"] {
+    fix = true
+    stash = "git"
+    steps = linters
+  }
+  ["pre-push"] {
+    steps {
+      ["test"] {
+        check = "mise run test-race"
+        exclusive = true
+      }
+    }
+  }
+  ["check"] {
+    steps = linters
+  }
+  ["fix"] {
+    fix = true
+    steps = linters
+  }
+}
