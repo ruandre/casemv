@@ -107,6 +107,7 @@ func TestCompletion(t *testing.T) {
 
 		{"convention flag value", "", nil, []string{"--convention", ""}, completion{allConventions, noFiles}},
 		{"convention flag value by prefix", "", nil, []string{"-c", "k"}, completion{[]string{"kebab"}, noFiles}},
+		{"config flag value", "", nil, []string{"--config", ""}, completion{[]string{"yaml", "yml"}, cobra.ShellCompDirectiveFilterFileExt}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

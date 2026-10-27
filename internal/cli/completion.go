@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"os"
 	"strings"
 
@@ -19,7 +20,11 @@ type completer struct {
 
 func registerCompletions(cmd *cobra.Command, c completer) {
 	cmd.ValidArgsFunction = c.completeArgs
-	if err := cmd.RegisterFlagCompletionFunc(conventionKey, completeConventions); err != nil {
+	err := errors.Join(
+		cmd.RegisterFlagCompletionFunc(conventionKey, completeConventions),
+		cmd.MarkFlagFilename("config", "yaml", "yml"),
+	)
+	if err != nil {
 		panic("casemv: register completions: " + err.Error())
 	}
 }
