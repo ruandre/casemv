@@ -12,7 +12,7 @@ import (
 // targetDir renames entries beneath the open target directory.
 type targetDir struct {
 	fd int
-	// root serves kernels before 5.6, which lack openat2.
+	// root serves systems where openat2 is unavailable.
 	root *os.Root
 }
 
@@ -38,7 +38,7 @@ func (t *targetDir) rename(dir, from, to string) error {
 		Flags:   unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC,
 		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS,
 	})
-	if errors.Is(err, unix.ENOSYS) {
+	if openat2Unavailable(err) {
 		return t.renameThroughRoot(dir, from, to)
 	}
 	if err != nil {
@@ -47,6 +47,13 @@ func (t *targetDir) rename(dir, from, to string) error {
 	//nolint:errcheck // O_PATH handle; closing it cannot lose data
 	defer unix.Close(dirfd)
 	return renameAt(dirfd, from, to)
+}
+
+// openat2Unavailable reports kernels before 5.6 (ENOSYS) and seccomp filters
+// that deny unknown syscalls with EPERM, as older container runtimes do. A
+// genuine EPERM recurs on the fallback path, so it is still reported.
+func openat2Unavailable(err error) bool {
+	return errors.Is(err, unix.ENOSYS) || errors.Is(err, unix.EPERM)
 }
 
 // renameThroughRoot keeps renames inside the target, but follows symlinks

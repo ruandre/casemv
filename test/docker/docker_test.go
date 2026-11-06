@@ -10,7 +10,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -94,6 +96,37 @@ cd /tmp/t && find . | LC_ALL=C sort`)
 	want := ".\n./a_dir\n./a_dir/b_file.txt"
 	if got := strings.TrimSpace(out); got != want {
 		t.Errorf("root run mismatch\n got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// Kernels before 5.6 lack openat2, and older container runtimes deny syscalls
+// their seccomp profile does not list with EPERM instead of ENOSYS. Either way
+// renames must fall back to os.Root rather than fail.
+func TestRenameWithoutOpenat2(t *testing.T) {
+	buildImage(t)
+	for name, errno := range map[string]int{"EPERM": 1, "ENOSYS": 38} {
+		t.Run(name, func(t *testing.T) {
+			// Allow-by-default keeps the profile to the one syscall under
+			// test; the container stays unprivileged, offline and unmounted.
+			profile := fmt.Sprintf(`{"defaultAction":"SCMP_ACT_ALLOW","syscalls":`+
+				`[{"names":["openat2"],"action":"SCMP_ACT_ERRNO","errnoRet":%d}]}`, errno)
+			path := filepath.Join(t.TempDir(), "seccomp.json")
+			if err := os.WriteFile(path, []byte(profile), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			args := append(append([]string{}, runArgs...), "--security-opt", "seccomp="+path, image,
+				"sh", "-c", `set -eu
+mkdir -p "/work/A Dir"
+touch "/work/A Dir/B File.txt"
+casemv snake /work -r -D --quiet
+cd /work && find . | LC_ALL=C sort`)
+			out := dockerRun(t, args...)
+
+			want := ".\n./a_dir\n./a_dir/b_file.txt"
+			if got := strings.TrimSpace(out); got != want {
+				t.Errorf("tree mismatch\n got:\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }
 
