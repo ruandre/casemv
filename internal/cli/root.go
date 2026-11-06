@@ -85,7 +85,7 @@ func NewRootCmd() *cobra.Command {
 		Version:       buildVersion(),
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			s, err := resolveSettings(v, args)
+			s, err := resolveSettings(v, cmd, args)
 			if err != nil {
 				return err
 			}
@@ -153,14 +153,14 @@ func isMissingDefaultConfig(err error, configFile string) bool {
 	return configFile == "" && (errors.As(err, &notFound) || errors.Is(err, os.ErrNotExist))
 }
 
-func resolveSettings(v *viper.Viper, args []string) (settings, error) {
+func resolveSettings(v *viper.Viper, cmd *cobra.Command, args []string) (settings, error) {
 	parsed, err := parsePositional(args, v.GetString(conventionKey))
 	if err != nil {
 		return settings{}, err
 	}
 	text := v.GetBool("text")
 	if text {
-		if err := validateTextMode(v, parsed.target); err != nil {
+		if err := validateTextMode(v, cmd, parsed.target); err != nil {
 			return settings{}, err
 		}
 	}
@@ -179,12 +179,14 @@ func resolveSettings(v *viper.Viper, args []string) (settings, error) {
 	}, nil
 }
 
-func validateTextMode(v *viper.Viper, target string) error {
+// validateTextMode rejects only flags given on the command line: a config file
+// or environment default meant for renaming must not break --text.
+func validateTextMode(v *viper.Viper, cmd *cobra.Command, target string) error {
 	if target != "" {
 		return errors.New("--text does not accept a target argument")
 	}
 	for _, flag := range textIncompatibleFlags {
-		if v.GetBool(flag) {
+		if cmd.Flags().Changed(flag) && v.GetBool(flag) {
 			return fmt.Errorf("--text cannot be used with --%s", flag)
 		}
 	}

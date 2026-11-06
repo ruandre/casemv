@@ -546,6 +546,39 @@ func TestTextModeRejectsIncompatibleOptions(t *testing.T) {
 	}
 }
 
+// Defaults set for renaming must not stop --text: only flags typed on the
+// command line conflict with it.
+func TestTextModeIgnoresRenameDefaults(t *testing.T) {
+	const defaults = "dry-run: true\nquiet: true\nlower-ext: true\n"
+	tests := []struct {
+		name   string
+		config string
+		env    map[string]string
+		args   []string
+	}{
+		{"user config file", defaults, nil, nil},
+		{"environment", "", map[string]string{"CASEMV_DRY_RUN": "true", "CASEMV_QUIET": "true", "CASEMV_LOWER_EXT": "true"}, nil},
+		{"flags turned off", "", nil, []string{"--dry-run=false", "--quiet=false", "--lower-ext=false"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			args := append([]string{"kebab", "--text"}, tc.args...)
+
+			got := runCLIWithConfigHome(t, configHomeWith(t, tc.config), "My File.TXT\n", args...)
+
+			if got.err != nil {
+				t.Fatalf("run: %v", got.err)
+			}
+			if got.out != "my-file-txt\n" {
+				t.Errorf("output = %q, want %q", got.out, "my-file-txt\n")
+			}
+		})
+	}
+}
+
 func TestTextModeHandlesLinesLongerThan64KiB(t *testing.T) {
 	const lineLen = 70 * 1024
 	longLine := strings.Repeat("a", lineLen) + "\n"
