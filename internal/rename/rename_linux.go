@@ -78,42 +78,61 @@ func (t *targetDir) renameThroughRoot(dir, from, to string) error {
 }
 
 func renameAt(dirfd int, from, to string) error {
-	err := unix.Renameat2(dirfd, from, dirfd, to, unix.RENAME_NOREPLACE)
-	switch {
-	case errors.Is(err, unix.EEXIST) && sameEntry(dirfd, from, to):
-		return renameThroughTemporary(dirfd, from, to)
-	case errors.Is(err, unix.EINVAL), errors.Is(err, unix.ENOSYS):
+	err := renameWith(dirfd, from, to, renameNoReplace)
+	if errors.Is(err, unix.EINVAL) || errors.Is(err, unix.ENOSYS) {
 		return renameAfterCheck(dirfd, from, to)
 	}
 	return err
 }
 
-// renameThroughTemporary handles a case-only rename on a case-folding
-// directory, where both names are one entry: rename(2) would succeed without
-// changing the stored name, and RENAME_NOREPLACE refuses it.
-func renameThroughTemporary(dirfd int, from, to string) error {
-	temporary := ".casemv-" + rand.Text()
-	if err := unix.Renameat2(dirfd, from, dirfd, temporary, unix.RENAME_NOREPLACE); err != nil {
-		return err
+// renameAfterCheck serves filesystems without RENAME_NOREPLACE.
+func renameAfterCheck(dirfd int, from, to string) error {
+	return renameWith(dirfd, from, to, renameIfAbsent)
+}
+
+// move renames an entry within dirfd, failing with EEXIST when the new name exists.
+type move func(dirfd int, from, to string) error
+
+func renameNoReplace(dirfd int, from, to string) error {
+	return unix.Renameat2(dirfd, from, dirfd, to, unix.RENAME_NOREPLACE)
+}
+
+// renameIfAbsent narrows the replace window to a few syscalls rather than
+// closing it.
+func renameIfAbsent(dirfd int, from, to string) error {
+	var st unix.Stat_t
+	if err := unix.Fstatat(dirfd, to, &st, unix.AT_SYMLINK_NOFOLLOW); err == nil {
+		return unix.EEXIST
 	}
-	err := unix.Renameat2(dirfd, temporary, dirfd, to, unix.RENAME_NOREPLACE)
-	if err == nil {
-		return nil
-	}
-	if undoErr := unix.Renameat2(dirfd, temporary, dirfd, from, unix.RENAME_NOREPLACE); undoErr != nil {
-		return fmt.Errorf("%w; entry left as %s: %w", err, temporary, undoErr)
+	return unix.Renameat(dirfd, from, dirfd, to)
+}
+
+// renameWith renames through a temporary name when from and to are one entry:
+// rename(2) between them succeeds without changing anything.
+func renameWith(dirfd int, from, to string, m move) error {
+	err := m(dirfd, from, to)
+	if errors.Is(err, unix.EEXIST) && sameEntry(dirfd, from, to) {
+		return renameThroughTemporary(dirfd, from, to, m)
 	}
 	return err
 }
 
-// renameAfterCheck serves filesystems without RENAME_NOREPLACE; the check
-// narrows the replace window to a few syscalls rather than closing it.
-func renameAfterCheck(dirfd int, from, to string) error {
-	var st unix.Stat_t
-	if err := unix.Fstatat(dirfd, to, &st, unix.AT_SYMLINK_NOFOLLOW); err == nil && !sameEntry(dirfd, from, to) {
-		return unix.EEXIST
+// renameThroughTemporary changes case on a case-folding directory, where both
+// names are one entry. Once from moves away, to is free unless it is a second
+// hard link to the same file, which m then refuses.
+func renameThroughTemporary(dirfd int, from, to string, m move) error {
+	temporary := ".casemv-" + rand.Text()
+	if err := m(dirfd, from, temporary); err != nil {
+		return err
 	}
-	return unix.Renameat(dirfd, from, dirfd, to)
+	err := m(dirfd, temporary, to)
+	if err == nil {
+		return nil
+	}
+	if undoErr := m(dirfd, temporary, from); undoErr != nil {
+		return fmt.Errorf("%w; entry left as %s: %w", err, temporary, undoErr)
+	}
+	return err
 }
 
 func sameEntry(dirfd int, a, b string) bool {
