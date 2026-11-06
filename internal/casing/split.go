@@ -48,9 +48,10 @@ func classify(r rune, width int) class {
 	}
 }
 
-// glyph is one decoded rune located in the source string. Words are cut from
-// the source by byte offset so undecodable bytes survive verbatim; converting
-// through []rune would replace each of them with U+FFFD.
+// glyph is one decoded rune, with any caseless combining marks after it,
+// located in the source string. Words are cut from the source by byte offset so
+// undecodable bytes survive verbatim; converting through []rune would replace
+// each of them with U+FFFD.
 type glyph struct {
 	class  class
 	offset int
@@ -60,10 +61,21 @@ func scanGlyphs(name string) []glyph {
 	glyphs := make([]glyph, 0, len(name))
 	for offset := 0; offset < len(name); {
 		r, width := utf8.DecodeRuneInString(name[offset:])
-		glyphs = append(glyphs, glyph{class: classify(r, width), offset: offset})
+		c := classify(r, width)
+		if !modifiesPrevious(glyphs, r, c) {
+			glyphs = append(glyphs, glyph{class: c, offset: offset})
+		}
 		offset += width
 	}
 	return glyphs
+}
+
+// modifiesPrevious reports whether r joins the glyph before it, so decomposed
+// E+U+0301 splits like precomposed U+00C9. A cased mark (U+0345 uppercases to
+// U+0399) keeps a glyph of its own, as does a mark with no word rune before it.
+func modifiesPrevious(glyphs []glyph, r rune, c class) bool {
+	followsWordRune := len(glyphs) > 0 && glyphs[len(glyphs)-1].class != classSeparator
+	return followsWordRune && c == classCaseless && unicode.IsMark(r)
 }
 
 // splitWords breaks a name into words, dropping separator runes.

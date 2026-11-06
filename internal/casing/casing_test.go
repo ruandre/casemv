@@ -6,6 +6,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/text/unicode/norm"
+
 	"github.com/ruandre/casemv/internal/casing"
 )
 
@@ -149,6 +151,8 @@ func TestFormatCounterexamples(t *testing.T) {
 		{"pascal with caseless Ll rune", casing.Pascal, "ʒ ӡʡ.txt", "Ʒӡʡ.txt"},
 		// Ⅶ is Nl, not Lu, yet lowercases to ⅶ.
 		{"screaming with roman numeral", casing.ScreamingSnake, "Ⅶa.txt", "ⅦA.txt"},
+		// U+0345 is a combining mark with case mappings, so it cannot join the rune before it.
+		{"camel with cased combining mark", casing.Camel, "0 \u0345A\u0345.txt", "0\u0345A\u0345.txt"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -377,5 +381,44 @@ func TestFormatPreservesCombiningMarks(t *testing.T) {
 				t.Errorf("%s.Format(%q, isDir=%v) = %q, want %q", tc.convention, tc.entry, tc.isDir, got, tc.want)
 			}
 		})
+	}
+}
+
+// Names may arrive in NFD (HFS+ stores them so), spelling É as E plus U+0301;
+// the result must not depend on which normal form a name uses.
+func TestFormatTextTreatsDecomposedLikeComposed(t *testing.T) {
+	inputs := []string{"A Été", "HTTPSÉté", "caféNOIR", "Été A B", "ÉTÉ Ab", "Ǘ Ǘ", "日本ÉTÉé"}
+	for _, convention := range casing.Conventions() {
+		for _, input := range inputs {
+			assertNormalFormsAgree(t, convention, input)
+		}
+	}
+}
+
+// normalFormAlphabet mixes plain, precomposed and doubly accented letters of
+// both cases with digits, separators and caseless letters. Every entry's case
+// mappings commute with canonical decomposition, which the property needs.
+var normalFormAlphabet = []string{"A", "a", "É", "é", "Ǘ", "ǘ", "N", "n", "Ñ", "ñ", "1", " ", "_", "日"}
+
+func FuzzFormatTextAgreesAcrossNormalForms(f *testing.F) {
+	for _, seed := range [][]byte{{0, 2, 3}, {0, 12, 2, 3, 2, 3}, {2, 2, 2, 3, 9}} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, picks []byte) {
+		var text strings.Builder
+		for _, pick := range picks {
+			text.WriteString(normalFormAlphabet[int(pick)%len(normalFormAlphabet)])
+		}
+		for _, convention := range casing.Conventions() {
+			assertNormalFormsAgree(t, convention, text.String())
+		}
+	})
+}
+
+func assertNormalFormsAgree(t *testing.T, convention casing.Convention, text string) {
+	t.Helper()
+	want := norm.NFD.String(convention.FormatText(norm.NFC.String(text)))
+	if got := convention.FormatText(norm.NFD.String(text)); got != want {
+		t.Errorf("%s.FormatText(NFD %+q) = %+q, want %+q as for NFC", convention, text, got, want)
 	}
 }

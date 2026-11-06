@@ -4,7 +4,6 @@ package casing
 import (
 	"fmt"
 	"strings"
-	"unicode/utf8"
 )
 
 // Convention is a naming convention that can be applied to a name.
@@ -23,7 +22,7 @@ const (
 	Train          Convention = "train"     // Renders Foo-Bar-Baz.
 )
 
-// canonical order used in help text, completion.
+// conventions holds every convention in the canonical order used in help text and completion.
 var conventions = [...]Convention{
 	Camel, Kebab, Lower, Pascal, ScreamingSnake, Sentence, Snake, Title, Train,
 }
@@ -135,11 +134,14 @@ func (c Convention) formatStem(stem string) string {
 	return b.String()
 }
 
+// needsLower reports whether rendered, joined to prev with no separator, would
+// fuse with it when split again. It reads glyphs, as splitWords does, so a
+// combining mark never hides the letter it modifies.
 func needsLower(prev, rendered string) bool {
-	r, width := utf8.DecodeLastRuneInString(prev)
-	switch classify(r, width) {
+	prevGlyphs := scanGlyphs(prev)
+	switch prevGlyphs[len(prevGlyphs)-1].class {
 	case classUpper, classDigit, classCaseless:
-		return !secondRuneIsLower(rendered)
+		return !secondGlyphIsLower(rendered)
 	case classOpaque:
 		return true
 	default:
@@ -147,11 +149,7 @@ func needsLower(prev, rendered string) bool {
 	}
 }
 
-func secondRuneIsLower(s string) bool {
-	_, w := utf8.DecodeRuneInString(s)
-	if w == 0 || w >= len(s) {
-		return false
-	}
-	r, width := utf8.DecodeRuneInString(s[w:])
-	return classify(r, width) == classLower
+func secondGlyphIsLower(s string) bool {
+	glyphs := scanGlyphs(s)
+	return len(glyphs) > 1 && glyphs[1].class == classLower
 }
