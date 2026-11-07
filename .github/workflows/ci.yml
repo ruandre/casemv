@@ -42,3 +42,21 @@ jobs:
           version: ${{ env.MISE_VERSION }}
       - run: mise run test-race
       - run: mise run test-e2e
+
+  # Unit tests only: e2e uses Unix signals and bash/fish completion, and the
+  # mise test tasks are bash scripts.
+  test-other-os:
+    name: Tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@9149ea85001c7435d5a66bb127d6a1b6227cb0a5 # v5.0.0
+        with:
+          version: ${{ env.MISE_VERSION }}
+          install_args: go
+      - run: go test -count=1 ./...

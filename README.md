@@ -128,7 +128,8 @@ mise tasks                    # list all tasks
 | `vuln`, `build`, `install`                   | govulncheck, `bin/casemv`, `~/.local/bin`       |
 
 - **Hooks:** `pre-commit` applies fixes; `pre-push` runs `test-race`.
-- **CI:** runs `check`, `vet-cross`, `vuln`, `test-race`, and `test-e2e`.
+- **CI:** runs `check`, `vet-cross`, `vuln`, `test-race`, and `test-e2e` on
+  Linux, and the unit and CLI tests on macOS and Windows.
 - **Lint:** `.golangci.yml` enables all linters; each disabled one has a
   reason. `depguard` limits imports to its allowlist.
 - **Case-folding tests:** these run on a `casefold` tmpfs inside `unshare -rm`,
