@@ -218,7 +218,7 @@ func occupantOf(dir, name, newName string, names []string) (string, bool) {
 	return newName, true
 }
 
-// ignoresCase probes dir's filesystem with an entry that already exists: if the
+// ignoresCase probes dir's filesystem with entries that already exist: if a
 // case-flipped name resolves to the same file, the filesystem folds case.
 func ignoresCase(dir string, names []string) bool {
 	for _, name := range names {
@@ -226,31 +226,55 @@ func ignoresCase(dir string, names []string) bool {
 		if !utf8.ValidString(name) {
 			continue
 		}
-		flipped := flipCase(name)
-		if flipped == name {
-			continue
+		if folds, known := probeCase(dir, name); known {
+			return folds
 		}
-		original, err := os.Lstat(filepath.Join(dir, name))
-		if err != nil {
-			continue
-		}
-		other, err := os.Lstat(filepath.Join(dir, flipped))
-		if err != nil {
-			// missing flipped probe proves case-sensitive directory.
-			if errors.Is(err, os.ErrNotExist) {
-				return false
-			}
-			continue
-		}
-		return os.SameFile(original, other)
 	}
 	return false
 }
 
+// probeCase flips only ASCII letters when name has any: every case-folding
+// filesystem folds those, so a missing flipped name proves case sensitivity.
+// Folding beyond ASCII varies (vfat folds no accents, the kernel's casefold
+// tables lag Unicode), so a missing non-ASCII flip proves nothing.
+func probeCase(dir, name string) (folds, known bool) {
+	flipped, isASCIIProbe := flipASCIICase(name), true
+	if flipped == name {
+		flipped, isASCIIProbe = flipCase(name), false
+	}
+	if flipped == name {
+		return false, false
+	}
+	original, err := os.Lstat(filepath.Join(dir, name))
+	if err != nil {
+		return false, false
+	}
+	other, err := os.Lstat(filepath.Join(dir, flipped))
+	if err != nil {
+		return false, isASCIIProbe && errors.Is(err, os.ErrNotExist)
+	}
+	return os.SameFile(original, other), true
+}
+
+func flipASCIICase(name string) string {
+	b := []byte(name)
+	for i, c := range b {
+		switch {
+		case 'a' <= c && c <= 'z':
+			b[i] = c - 'a' + 'A'
+		case 'A' <= c && c <= 'Z':
+			b[i] = c - 'A' + 'a'
+		}
+	}
+	return string(b)
+}
+
+// flipCase treats a rune as uppercase when lowercasing changes it, which
+// covers titlecase ǅ and Other_Uppercase Ⅶ that unicode.IsUpper misses.
 func flipCase(name string) string {
 	return strings.Map(func(r rune) rune {
-		if unicode.IsUpper(r) {
-			return unicode.ToLower(r)
+		if lower := unicode.ToLower(r); lower != r {
+			return lower
 		}
 		return unicode.ToUpper(r)
 	}, name)

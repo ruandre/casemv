@@ -32,6 +32,9 @@ func TestCollisionsMatchKernelCaseFolding(t *testing.T) {
 		{"full case folding", []string{"Straße Map.txt", "strasse-map.txt"}},
 		{"long s folds to s", []string{"Baſ Note.txt", "bas-note.txt"}},
 		{"undecodable sibling does not blind the probe", []string{"A B.txt", "a_b.TXT", "0x\xe9y"}},
+		// Folding beyond ASCII varies by filesystem and Unicode version; the
+		// kernel does not fold dotless ı to I.
+		{"unfolded non-ASCII sibling does not blind the probe", []string{"A B.txt", "a_b.TXT", "0-ı"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -161,6 +161,7 @@ func TestConflictsInIgnoresUnaffectedDirectories(t *testing.T) {
 func TestFlipCase(t *testing.T) {
 	tests := map[string]string{
 		"Mixed Case.txt": "mIXED cASE.TXT",
+		"ǅ Ⅶ Ⓐ":          "ǆ ⅶ ⓐ",
 		"1234":           "1234",
 		"":               "",
 	}
@@ -239,5 +240,24 @@ func TestIgnoresCaseShortCircuitsOnMissingFlipped(t *testing.T) {
 	// missing flipped probe must short-circuit before evaluating subsequent entries.
 	if got := ignoresCase(dir, []string{"First.txt", "Second.txt"}); got {
 		t.Errorf("ignoresCase = true, want false")
+	}
+}
+
+// Every case-folding filesystem folds ASCII letters, but folding beyond ASCII
+// varies, so a missing non-ASCII probe must not decide the answer.
+func TestIgnoresCaseLooksPastAMissingNonASCIIProbe(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"0-ı", "Second.txt"} {
+		if err := writeEmpty(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A second link stands in for a folding lookup of the flipped name.
+	if err := os.Link(filepath.Join(dir, "Second.txt"), filepath.Join(dir, "sECOND.TXT")); err != nil {
+		t.Skip("hard links unsupported")
+	}
+
+	if !ignoresCase(dir, []string{"0-ı", "Second.txt"}) {
+		t.Error("ignoresCase = false, want true")
 	}
 }
