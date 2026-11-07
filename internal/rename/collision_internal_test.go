@@ -305,3 +305,34 @@ func TestCheckCollisionsReportsOccupiedTargetsWithNameCollisions(t *testing.T) {
 		t.Errorf("conflict names = %q, want %q", got, want)
 	}
 }
+
+// a.txt shows up in b.txt's conflict only as the entry b.txt would replace;
+// its own target, c.txt, exists on disk but not in the scan, and must still
+// be reported.
+func TestCheckCollisionsProbesEntriesListedAsOccupants(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{"a.txt", "b.txt"}
+	for _, name := range append(names, "c.txt") {
+		if err := writeEmpty(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	changed := map[string]string{
+		filepath.Join(dir, "a.txt"): "c.txt",
+		filepath.Join(dir, "b.txt"): "a.txt",
+	}
+
+	err := checkCollisions(tree{siblings: map[string][]string{dir: names}}, changed)
+
+	collision, ok := errors.AsType[*CollisionError](err)
+	if !ok {
+		t.Fatalf("checkCollisions error = %v, want *CollisionError", err)
+	}
+	got := make([]string, len(collision.Conflicts))
+	for i, c := range collision.Conflicts {
+		got[i] = c.Name
+	}
+	if want := []string{"a.txt", "c.txt"}; !slices.Equal(got, want) {
+		t.Errorf("conflict names = %q, want %q", got, want)
+	}
+}

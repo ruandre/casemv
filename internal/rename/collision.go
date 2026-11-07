@@ -76,7 +76,11 @@ func checkCollisions(t tree, changed map[string]string) error {
 		// and there os.Rename replaces a destination differing only by case.
 		found := conflictsIn(dir, names, changed, ignoresCase(dir, names))
 		conflicts = append(conflicts, found...)
-		conflicts = append(conflicts, occupiedTargets(dir, names, changed, sourcesOf(found))...)
+		for _, c := range occupiedTargets(dir, names, changed) {
+			if !isReported(found, c) {
+				conflicts = append(conflicts, c)
+			}
+		}
 	}
 	if len(conflicts) == 0 {
 		return nil
@@ -183,24 +187,22 @@ func foldKey(name string) string {
 	return norm.NFD.String(cases.Fold().String(norm.NFD.String(name)))
 }
 
-func sourcesOf(conflicts []Conflict) map[string]bool {
-	sources := make(map[string]bool)
-	for _, c := range conflicts {
-		for _, source := range c.Sources {
-			sources[source] = true
-		}
-	}
-	return sources
+// isReported tells whether found already holds c: a conflict over the same
+// target, under folding, naming both of c's sources.
+func isReported(found []Conflict, c Conflict) bool {
+	return slices.ContainsFunc(found, func(f Conflict) bool {
+		return foldKey(f.Name) == foldKey(c.Name) &&
+			!slices.ContainsFunc(c.Sources, func(source string) bool { return !slices.Contains(f.Sources, source) })
+	})
 }
 
 // occupiedTargets asks the filesystem whether a target name already resolves
-// to another entry, catching folding rules foldKey does not model. Names in
-// reported already conflict, so they are not probed again.
-func occupiedTargets(dir string, names []string, changed map[string]string, reported map[string]bool) []Conflict {
+// to another entry, catching folding rules foldKey does not model.
+func occupiedTargets(dir string, names []string, changed map[string]string) []Conflict {
 	var conflicts []Conflict
 	for _, name := range names {
 		newName, ok := changed[filepath.Join(dir, name)]
-		if !ok || reported[name] {
+		if !ok {
 			continue
 		}
 		occupant, ok := occupantOf(dir, name, newName, names)
