@@ -22,22 +22,20 @@ func displayPath(path string) string {
 }
 
 // errorText renders err for stderr. Only an unwrapped collision report keeps
-// its line breaks: it quotes every path, so its newlines only separate
-// conflicts. Text wrapping it may hold raw paths, so a wrapped one is escaped
-// whole.
+// its line breaks, and is printed as is: CollisionError.Error quotes every
+// variable field with %q, so its newlines only separate conflicts, and
+// escaping again would double its backslashes. Text wrapping it may hold raw
+// paths, so a wrapped one is escaped whole.
 func errorText(err error) string {
 	collision, ok := errors.AsType[*rename.CollisionError](err)
 	if !ok || err.Error() != collision.Error() {
 		return terminalSafe(err.Error())
 	}
-	lines := strings.Split(collision.Error(), "\n")
-	for i, line := range lines {
-		lines[i] = terminalSafe(line)
-	}
-	return strings.Join(lines, "\n")
+	return collision.Error()
 }
 
-// terminalSafe escapes what displayPath would quote.
+// terminalSafe escapes what displayPath would quote, and backslashes, so an
+// escape it writes cannot be confused with one already in the text.
 func terminalSafe(text string) string {
 	var b strings.Builder
 	for i := 0; i < len(text); {
@@ -45,6 +43,8 @@ func terminalSafe(text string) string {
 		switch {
 		case r == utf8.RuneError && width == 1:
 			fmt.Fprintf(&b, `\x%02x`, text[i])
+		case r == '\\':
+			b.WriteString(`\\`)
 		case strconv.IsPrint(r):
 			b.WriteString(text[i : i+width])
 		default:

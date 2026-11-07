@@ -793,9 +793,9 @@ func TestProgressQuotesNamesATerminalWouldInterpret(t *testing.T) {
 // Errors carry paths raw, and a newline in one would fake an output line.
 func TestReportEscapesControlCharactersAndLineBreaks(t *testing.T) {
 	var out bytes.Buffer
-	cli.Report(&out, errors.New("walk Evil\x1b[2J\xe9\ncasemv: fake: denied"))
+	cli.Report(&out, errors.New("walk Evil\x1b[2J\xe9\ncasemv: fake: denied a\\b"))
 
-	if want := "casemv: walk Evil\\x1b[2J\\xe9\\ncasemv: fake: denied\n"; out.String() != want {
+	if want := "casemv: walk Evil\\x1b[2J\\xe9\\ncasemv: fake: denied a\\\\b\n"; out.String() != want {
 		t.Errorf("output = %q, want %q", out.String(), want)
 	}
 }
@@ -816,6 +816,18 @@ func TestReportKeepsOneLinePerCollision(t *testing.T) {
 	}
 	if want := strconv.Quote(root + "/Fake\ncasemv: Dir"); !strings.Contains(out.String(), want) {
 		t.Errorf("report %q lacks quoted directory %s", out.String(), want)
+	}
+}
+
+// The collision message quotes its paths already; escaping again would double backslashes.
+func TestReportEscapesCollisionBackslashesOnce(t *testing.T) {
+	collision := &rename.CollisionError{Conflicts: []rename.Conflict{{Dir: "/d", Name: "n", Sources: []string{`a\b.txt`, "c"}}}}
+
+	var out bytes.Buffer
+	cli.Report(&out, collision)
+
+	if want := `claimed by "a\\b.txt", "c"` + "\n"; !strings.HasSuffix(out.String(), want) {
+		t.Errorf("report %q does not end with %q", out.String(), want)
 	}
 }
 
