@@ -63,7 +63,7 @@ func report(w io.Writer, err error) int {
 		return exitInterrupted
 	}
 	//nolint:errcheck // the exit code carries the failure; a failed stderr write cannot
-	fmt.Fprintln(w, "casemv:", terminalSafe(err.Error()))
+	fmt.Fprintln(w, "casemv:", errorText(err))
 	return 1
 }
 

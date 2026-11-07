@@ -765,12 +765,32 @@ func TestProgressQuotesNamesATerminalWouldInterpret(t *testing.T) {
 	}
 }
 
-func TestReportEscapesControlCharactersButKeepsLineBreaks(t *testing.T) {
+// Errors carry paths raw, and a newline in one would fake an output line.
+func TestReportEscapesControlCharactersAndLineBreaks(t *testing.T) {
 	var out bytes.Buffer
-	cli.Report(&out, errors.New("walk Evil\x1b[2J\xe9:\n  denied"))
+	cli.Report(&out, errors.New("walk Evil\x1b[2J\xe9\ncasemv: fake: denied"))
 
-	if want := "casemv: walk Evil\\x1b[2J\\xe9:\n  denied\n"; out.String() != want {
+	if want := "casemv: walk Evil\\x1b[2J\\xe9\\ncasemv: fake: denied\n"; out.String() != want {
 		t.Errorf("output = %q, want %q", out.String(), want)
+	}
+}
+
+// A collision report spans lines, one per conflict; names in it must not add any.
+func TestReportKeepsOneLinePerCollision(t *testing.T) {
+	root := makeTree(t, "Fake\ncasemv: Dir/My File.txt", "Fake\ncasemv: Dir/my_file.txt")
+	got := runCLI(t, "", "kebab", root, "--recursive")
+	if got.err == nil {
+		t.Fatal("run succeeded, want a collision")
+	}
+
+	var out bytes.Buffer
+	cli.Report(&out, got.err)
+
+	if lines := strings.Count(out.String(), "\n"); lines != 2 {
+		t.Errorf("report has %d lines, want 2 (summary + conflict): %q", lines, out.String())
+	}
+	if want := strconv.Quote(root + "/Fake\ncasemv: Dir"); !strings.Contains(out.String(), want) {
+		t.Errorf("report %q lacks quoted directory %s", out.String(), want)
 	}
 }
 

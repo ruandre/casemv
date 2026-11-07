@@ -24,7 +24,9 @@ type Conflict struct {
 }
 
 // CollisionError reports conflicts found during planning. It is returned before
-// any rename is attempted, so the tree is untouched.
+// any rename is attempted, so the tree is untouched. Its message puts each
+// conflict on its own line, with every path quoted, so a newline in a name
+// cannot start another.
 type CollisionError struct {
 	Conflicts []Conflict
 }
@@ -37,7 +39,7 @@ func (e *CollisionError) Error() string {
 		for i, source := range c.Sources {
 			quoted[i] = strconv.Quote(source)
 		}
-		fmt.Fprintf(&b, "\n  %s: %q claimed by %s", c.Dir, c.Name, strings.Join(quoted, ", "))
+		fmt.Fprintf(&b, "\n  %q: %q claimed by %s", c.Dir, c.Name, strings.Join(quoted, ", "))
 	}
 	return b.String()
 }

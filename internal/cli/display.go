@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/ruandre/casemv/internal/rename"
 )
 
 // displayPath quotes a name a terminal could misread: control runes would
@@ -18,8 +21,21 @@ func displayPath(path string) string {
 	return path
 }
 
-// terminalSafe escapes what displayPath would quote, keeping the newlines
-// that structure multi-line errors.
+// errorText renders err for stderr. Only a collision report keeps its line
+// breaks: it quotes every path, so its newlines only separate conflicts.
+func errorText(err error) string {
+	collision, ok := errors.AsType[*rename.CollisionError](err)
+	if !ok {
+		return terminalSafe(err.Error())
+	}
+	lines := strings.Split(collision.Error(), "\n")
+	for i, line := range lines {
+		lines[i] = terminalSafe(line)
+	}
+	return strings.Join(lines, "\n")
+}
+
+// terminalSafe escapes what displayPath would quote.
 func terminalSafe(text string) string {
 	var b strings.Builder
 	for i := 0; i < len(text); {
@@ -27,7 +43,7 @@ func terminalSafe(text string) string {
 		switch {
 		case r == utf8.RuneError && width == 1:
 			fmt.Fprintf(&b, `\x%02x`, text[i])
-		case r == '\n' || strconv.IsPrint(r):
+		case strconv.IsPrint(r):
 			b.WriteString(text[i : i+width])
 		default:
 			b.WriteString(strings.Trim(strconv.QuoteRune(r), "'"))
