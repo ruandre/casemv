@@ -532,6 +532,10 @@ func TestTextModeRejectsIncompatibleOptions(t *testing.T) {
 		{"rejects dry-run", []string{"kebab", "--text", "--dry-run"}, "--text cannot be used with --dry-run"},
 		{"rejects quiet", []string{"kebab", "--text", "--quiet"}, "--text cannot be used with --quiet"},
 		{"rejects lower-ext", []string{"kebab", "--text", "--lower-ext"}, "--text cannot be used with --lower-ext"},
+		{"rejects recursive", []string{"kebab", "--text", "-r"}, "--text cannot be used with --recursive"},
+		{"rejects dir", []string{"kebab", "--text", "-D"}, "--text cannot be used with --dir"},
+		{"rejects hidden", []string{"kebab", "--text", "-H"}, "--text cannot be used with --hidden"},
+		{"rejects exclude", []string{"kebab", "--text", "-e", "*.bak"}, "--text cannot be used with --exclude"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -576,6 +580,16 @@ func TestTextModeIgnoresRenameDefaults(t *testing.T) {
 				t.Errorf("output = %q, want %q", got.out, "my-file-txt\n")
 			}
 		})
+	}
+}
+
+func TestTextModeAcceptsFileFlagsSetToFalse(t *testing.T) {
+	got := runCLI(t, "My File\n", "kebab", "--text", "--dry-run=false", "--recursive=false")
+	if got.err != nil {
+		t.Fatalf("run: %v", got.err)
+	}
+	if got.out != "my-file\n" {
+		t.Errorf("output = %q, want %q", got.out, "my-file\n")
 	}
 }
 

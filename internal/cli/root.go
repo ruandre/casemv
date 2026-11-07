@@ -35,7 +35,7 @@ const exitInterrupted = 130
 const argsWithTarget = 2
 
 // textIncompatibleFlags act on files, which --text never touches.
-var textIncompatibleFlags = []string{"dry-run", "quiet", "lower-ext"}
+var textIncompatibleFlags = []string{"recursive", "dir", "hidden", excludeKey, "dry-run", "quiet", "lower-ext"}
 
 // Execute runs the root command and returns the process exit code. An interrupt
 // cancels the run between renames rather than part-way through one.
@@ -168,7 +168,7 @@ func resolveSettings(v *viper.Viper, cmd *cobra.Command, args []string) (setting
 	}
 	text := v.GetBool("text")
 	if text {
-		if err := validateTextMode(v, cmd, parsed.target); err != nil {
+		if err := validateTextMode(cmd, parsed.target); err != nil {
 			return settings{}, err
 		}
 	}
@@ -198,13 +198,14 @@ func excludePatterns(v *viper.Viper) []string {
 
 // validateTextMode rejects only flags given on the command line: a config file
 // or environment default meant for renaming must not break --text.
-func validateTextMode(v *viper.Viper, cmd *cobra.Command, target string) error {
+func validateTextMode(cmd *cobra.Command, target string) error {
 	if target != "" {
 		return errors.New("--text does not accept a target argument")
 	}
-	for _, flag := range textIncompatibleFlags {
-		if cmd.Flags().Changed(flag) && v.GetBool(flag) {
-			return fmt.Errorf("--text cannot be used with --%s", flag)
+	for _, name := range textIncompatibleFlags {
+		// --dry-run=false asks for nothing --text would ignore.
+		if flag := cmd.Flags().Lookup(name); flag.Changed && flag.Value.String() != "false" {
+			return fmt.Errorf("--text cannot be used with --%s", name)
 		}
 	}
 	return nil
