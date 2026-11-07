@@ -43,11 +43,8 @@ func Execute() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Restore the default handler once the first signal lands, so a second one
-	// still kills a run blocked in a read that cannot observe the context.
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
+	// still kills a run stuck in a syscall, such as on a hung network mount.
+	context.AfterFunc(ctx, stop)
 
 	return report(os.Stderr, NewRootCmd().ExecuteContext(ctx))
 }

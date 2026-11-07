@@ -862,6 +862,43 @@ func TestTextModeWritesEachLineBeforeWaitingForMore(t *testing.T) {
 	}
 }
 
+// A read blocked on idle input ignores signals; cancelling must not wait for it.
+func TestTextModeStopsWhileWaitingForInput(t *testing.T) {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	stdin, feed := io.Pipe()
+	t.Cleanup(func() {
+		if err := feed.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	lines := make(chan string, 10)
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	cmd := cli.NewRootCmd()
+	cmd.SetArgs([]string{"kebab", "--text"})
+	cmd.SetIn(stdin)
+	cmd.SetOut(lineWriter(lines))
+	cmd.SetErr(io.Discard)
+	done := make(chan error, 1)
+	go func() { done <- cmd.ExecuteContext(ctx) }()
+
+	// Once the first line is out, casemv is waiting for the second.
+	if _, err := feed.Write([]byte("My File\n")); err != nil {
+		t.Fatal(err)
+	}
+	<-lines
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("run error = %v, want context.Canceled", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("run still waiting for input after cancel")
+	}
+}
+
 type lineWriter chan string
 
 func (w lineWriter) Write(p []byte) (int, error) {

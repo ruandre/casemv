@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -285,9 +286,16 @@ func TestRuntimeFailureHidesUsage(t *testing.T) {
 }
 
 func TestCleanInterruptReporting(t *testing.T) {
+	for name, signal := range map[string]os.Signal{"SIGINT": os.Interrupt, "SIGTERM": syscall.SIGTERM} {
+		t.Run(name, func(t *testing.T) { testCleanInterrupt(t, signal) })
+	}
+}
+
+func testCleanInterrupt(t *testing.T, signal os.Signal) {
+	t.Helper()
 	proc := startTextMode(t)
 
-	// round-trip line to ensure signal handler initialization.
+	// A round-trip line shows the signal handler is installed.
 	if _, err := proc.stdin.Write([]byte("First Line\n")); err != nil {
 		t.Fatalf("write: %v", err)
 	}
@@ -296,16 +304,20 @@ func TestCleanInterruptReporting(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 
-	if err := proc.cmd.Process.Signal(os.Interrupt); err != nil {
+	// Stdin stays open and idle: one signal must end the run on its own.
+	if err := proc.cmd.Process.Signal(signal); err != nil {
 		t.Fatalf("signal: %v", err)
 	}
-	time.Sleep(50 * time.Millisecond)
-	//nolint:errcheck // process may have closed stdin already upon receiving signal
-	_, _ = proc.stdin.Write([]byte("wake\n"))
-	//nolint:errcheck // process may have closed stdin already upon receiving signal
-	_ = proc.stdin.Close()
+	waited := make(chan error, 1)
+	go func() { waited <- proc.cmd.Wait() }()
+	var err error
+	select {
+	case err = <-waited:
+	case <-time.After(5 * time.Second):
+		t.Fatal("casemv still running 5s after one signal")
+	}
 
-	exit, ok := errors.AsType[*exec.ExitError](proc.cmd.Wait())
+	exit, ok := errors.AsType[*exec.ExitError](err)
 	if !ok {
 		t.Fatal("wait error is not an ExitError")
 	}

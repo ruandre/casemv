@@ -99,7 +99,7 @@ func renameTree(ctx context.Context, out *output, s settings) error {
 }
 
 func convertLines(ctx context.Context, out *output, in io.Reader, s settings) error {
-	reader := bufio.NewReader(in)
+	reader := bufio.NewReader(newCancellableReader(ctx, in))
 	for {
 		// Flush before a read that may block, so streamed input sees each line.
 		if reader.Buffered() == 0 {
