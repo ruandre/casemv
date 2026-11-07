@@ -21,11 +21,13 @@ func displayPath(path string) string {
 	return path
 }
 
-// errorText renders err for stderr. Only a collision report keeps its line
-// breaks: it quotes every path, so its newlines only separate conflicts.
+// errorText renders err for stderr. Only an unwrapped collision report keeps
+// its line breaks: it quotes every path, so its newlines only separate
+// conflicts. Text wrapping it may hold raw paths, so a wrapped one is escaped
+// whole.
 func errorText(err error) string {
 	collision, ok := errors.AsType[*rename.CollisionError](err)
-	if !ok {
+	if !ok || err.Error() != collision.Error() {
 		return terminalSafe(err.Error())
 	}
 	lines := strings.Split(collision.Error(), "\n")

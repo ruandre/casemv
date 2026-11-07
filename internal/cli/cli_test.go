@@ -819,6 +819,21 @@ func TestReportKeepsOneLinePerCollision(t *testing.T) {
 	}
 }
 
+// Only the collision message quotes its paths; text wrapping it may hold raw ones.
+func TestReportEscapesLineBreaksOfAWrappedCollision(t *testing.T) {
+	collision := &rename.CollisionError{Conflicts: []rename.Conflict{{Dir: "/d", Name: "n", Sources: []string{"a", "b"}}}}
+
+	var out bytes.Buffer
+	cli.Report(&out, fmt.Errorf("plan x\ny: %w", collision))
+
+	if lines := strings.Count(out.String(), "\n"); lines != 1 {
+		t.Errorf("report has %d lines, want 1: %q", lines, out.String())
+	}
+	if !strings.Contains(out.String(), `plan x\ny: `) {
+		t.Errorf("report %q lacks the escaped wrapper text", out.String())
+	}
+}
+
 func TestCollisionSourcesAreQuoted(t *testing.T) {
 	root := makeTree(t, "My File.txt", "my\nfile.txt")
 
