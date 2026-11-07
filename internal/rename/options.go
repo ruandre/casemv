@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -14,10 +15,11 @@ type Options struct {
 	Recursive     bool
 	IncludeDirs   bool
 	IncludeHidden bool
-	// Exclude holds glob patterns in path.Match syntax, read like .gitignore
-	// lines. A pattern with a leading or inner slash matches the entry's
-	// slash-separated path relative to Root; otherwise it matches the base name
-	// at any depth. A trailing slash matches directories only.
+	// Exclude holds glob patterns in path.Match syntax, anchored as .gitignore
+	// anchors lines. A pattern with a leading or inner slash matches the
+	// entry's slash-separated path relative to Root; otherwise it matches the
+	// base name at any depth. A trailing slash matches directories only.
+	// Unlike .gitignore, "**" is rejected and "!" negates nothing.
 	Exclude []string
 }
 
@@ -26,7 +28,11 @@ func (o Options) validate() error {
 		return errors.New("target directory is empty")
 	}
 	for _, pattern := range o.Exclude {
-		if _, err := path.Match(parseExclude(pattern).glob, "x"); err != nil {
+		glob := parseExclude(pattern).glob
+		if strings.Contains(glob, "**") {
+			return fmt.Errorf("invalid exclude pattern %q: ** is not supported; * matches within one path segment", pattern)
+		}
+		if _, err := path.Match(glob, "x"); err != nil {
 			return fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
 		}
 	}
@@ -44,8 +50,10 @@ type excludePattern struct {
 }
 
 // parseExclude decides anchoring before it strips leading "./" and "/": those
-// prefixes are what anchor "/*.txt" to the target root.
+// prefixes are what anchor "/*.txt" to the target root. On Windows a
+// backslash separates; elsewhere path.Match reads it as an escape.
 func parseExclude(pattern string) excludePattern {
+	pattern = filepath.ToSlash(pattern)
 	dirOnly := strings.HasSuffix(pattern, "/")
 	glob := strings.TrimRight(pattern, "/")
 	anchored := strings.Contains(glob, "/")

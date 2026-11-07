@@ -40,10 +40,11 @@ Words split on separators, case humps, and acronyms (`XMLHttpRequest` →
 | `--text`           | Convert stdin lines to stdout                |
 | `--config`         | Config file path                             |
 
-Exclude patterns use `path.Match` and read like `.gitignore` lines. A leading or
+Exclude patterns use `path.Match`, anchored as in `.gitignore`. A leading or
 inner slash matches the path relative to the target (`/*.txt`, `docs/old`);
 otherwise the base name at any depth. A trailing slash matches directories only
-(`node_modules/`).
+(`node_modules/`). `*` stays within one path segment; `**` is an error, and `!`
+negates nothing.
 
 ```sh
 casemv snake ./docs -r -D             # whole tree, directories too
@@ -74,7 +75,7 @@ Order: flags, then `CASEMV_<FLAG>` environment variables (e.g.
 `CASEMV_DRY_RUN`), then the config file: `--config`, else `CASEMV_CONFIG`, else
 `$XDG_CONFIG_HOME/casemv/casemv.yaml`. The working directory is never searched.
 Unknown keys and mistyped values are errors. `CASEMV_EXCLUDE` separates
-patterns with `:`, like `PATH`.
+patterns like `PATH`: with `:`, or `;` on Windows.
 
 ```yaml
 convention: kebab # then a bare `casemv` or `casemv ./docs` converts to kebab

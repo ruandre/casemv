@@ -320,6 +320,11 @@ func TestBuildRejectsInvalidInput(t *testing.T) {
 			t.Helper()
 			return rename.Options{Root: t.TempDir(), Exclude: []string{"["}}
 		}},
+		// path.Match reads ** as *, which does not cross a slash.
+		{"double star exclude pattern", func(t *testing.T) rename.Options {
+			t.Helper()
+			return rename.Options{Root: t.TempDir(), Exclude: []string{"**/node_modules"}}
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
