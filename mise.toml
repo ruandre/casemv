@@ -89,12 +89,23 @@ description = "Report per-package statement coverage"
 run = "go test -cover -count=1 ./internal/..."
 
 [tasks.fuzz]
-description = "Fuzz one name-formatter target"
+description = "Fuzz one target, in whichever package defines it"
 usage = '''
 arg "[target]" default="FuzzFormatKeepsOpaqueBytes" help="Fuzz function name"
 arg "[duration]" default="30s" help="Fuzz time, as go test -fuzztime"
 '''
-run = 'go test -run "^${usage_target?}$" -fuzz "^${usage_target?}$" -fuzztime "${usage_duration?}" ./internal/casing/'
+# go test passes, fuzzing nothing, when the package lacks the target.
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+target="${usage_target?}"
+packages=$({ grep -rlE --include='*_test.go' "^func ${target}\(" internal || true; } | xargs -r dirname | sort -u)
+if [[ -z $packages || $packages == *$'\n'* ]]; then
+  echo "fuzz: want one package defining ${target}, found: ${packages:-none}" >&2
+  exit 1
+fi
+go test -run "^${target}$" -fuzz "^${target}$" -fuzztime "${usage_duration?}" "./${packages}/"
+'''
 
 [tasks.bench]
 description = "Benchmark name formatting and plan building"
