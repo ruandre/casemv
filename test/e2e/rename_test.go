@@ -212,7 +212,7 @@ func TestSymlinkedTargetDirectoryIsFollowed(t *testing.T) {
 	)
 }
 
-// casemv.yaml in working directory must not widen run.
+// A casemv.yaml in the working directory must not widen the run.
 func TestWorkingDirectoryConfigIsIgnored(t *testing.T) {
 	root := makeTree(t, "Read Me.txt", ".git/COMMIT_EDITMSG")
 	config := filepath.Join(root, "casemv.yaml")
@@ -260,7 +260,7 @@ func TestTextModeHandlesLongLines(t *testing.T) {
 	}
 }
 
-func TestTextModePreservesWhitespaceAndStopsAtEmptyLine(t *testing.T) {
+func TestTextModePreservesWhitespaceAndEmptyLines(t *testing.T) {
 	input := "  First Line  \n   \n\tThird Line\t\n\nFourth Line\n"
 	got := casemv(t, input, "lower", "--text").requireSuccess(t)
 	want := "  first line  \n   \n\tthird line\t\n\nfourth line\n"

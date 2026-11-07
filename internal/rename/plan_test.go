@@ -191,7 +191,7 @@ func TestCollisionAbortsBeforeAnythingIsRenamed(t *testing.T) {
 }
 
 func TestCollisionWithAnEntryThatKeepsItsName(t *testing.T) {
-	// converted sibling absent from plan, but target contested.
+	// Converted sibling absent from plan, but target contested.
 	root := makeTree(t, "My File.txt", "my-file.txt")
 	_, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.Kebab)
 
@@ -205,7 +205,7 @@ func TestCollisionWithAnEntryThatKeepsItsName(t *testing.T) {
 }
 
 func TestCollisionWithASkippedSibling(t *testing.T) {
-	// excluded entry retains name, claims target.
+	// Excluded entry retains name, claims target.
 	root := makeTree(t, "My File.txt", "my-file.txt")
 	_, err := rename.Build(t.Context(),
 		rename.Options{Root: root, Exclude: []string{"my-file.txt"}}, casing.Kebab)
@@ -216,7 +216,7 @@ func TestCollisionWithASkippedSibling(t *testing.T) {
 }
 
 func TestCollisionIntermediateOverwriteHazard(t *testing.T) {
-	// under Pascal casing, both entries claim "Ab.txt".
+	// Under Pascal casing, both entries claim "Ab.txt".
 	root := makeTree(t, "A B.txt", "AB.txt")
 	fileA := filepath.Join(root, "A B.txt")
 	fileB := filepath.Join(root, "AB.txt")
@@ -261,7 +261,7 @@ func assertContent(t *testing.T, path, want string) {
 }
 
 func TestCollisionIntermediateOverwriteHazardCamel(t *testing.T) {
-	// under Camel casing, "A A A.txt" -> "aAA.txt", "aAA.txt" -> "aAa.txt".
+	// Under Camel casing, "A A A.txt" -> "aAA.txt", "aAA.txt" -> "aAa.txt".
 	root := makeTree(t, "A A A.txt", "aAA.txt")
 	_, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.Camel)
 
@@ -649,7 +649,7 @@ func TestIgnoresCaseIsFalseOnACaseSensitiveFilesystem(t *testing.T) {
 	if _, err := os.Lstat(filepath.Join(root, "mIXED cASE.TXT")); err == nil {
 		t.Skip("filesystem folds case")
 	}
-	// conflict must be found when folded, exact names agree.
+	// Conflict must be found when folded, exact names agree.
 	root = makeTree(t, "My File.txt", "my_file.txt")
 	if _, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.Kebab); err == nil {
 		t.Error("Build missed an exact-name collision")

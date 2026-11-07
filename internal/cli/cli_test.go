@@ -606,7 +606,7 @@ func TestTextModeHandlesLinesLongerThan64KiB(t *testing.T) {
 	}
 }
 
-func TestTextModePreservesWhitespaceAndStopsOnlyAtEmptyLine(t *testing.T) {
+func TestTextModePreservesWhitespaceAndEmptyLines(t *testing.T) {
 	input := "  First Line  \n   \n\tThird Line\t\n\nFourth Line\n"
 	got := runCLI(t, input, "lower", "--text")
 	if got.err != nil {
@@ -618,7 +618,7 @@ func TestTextModePreservesWhitespaceAndStopsOnlyAtEmptyLine(t *testing.T) {
 	}
 }
 
-func TestTextModeStopsAtCRLFEmptyLine(t *testing.T) {
+func TestTextModePreservesCRLFEmptyLines(t *testing.T) {
 	input := "First Line\r\n\r\nSecond Line\r\n"
 	got := runCLI(t, input, "kebab", "--text")
 	if got.err != nil {

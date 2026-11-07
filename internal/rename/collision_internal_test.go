@@ -179,7 +179,7 @@ func TestIgnoresCaseOnHostFilesystem(t *testing.T) {
 	}
 	folds := ignoresCase(dir, []string{"Probe File.txt"})
 
-	// host answer must match actual filesystem behavior.
+	// Host answer must match actual filesystem behavior.
 	err := writeEmpty(filepath.Join(dir, "probe file.txt"))
 	entries, readErr := readNames(dir)
 	if readErr != nil {
@@ -237,7 +237,7 @@ func TestIgnoresCaseShortCircuitsOnMissingFlipped(t *testing.T) {
 		t.Skip("hard links unsupported")
 	}
 
-	// missing flipped probe must short-circuit before evaluating subsequent entries.
+	// A missing ASCII-flipped probe decides the answer before later entries.
 	if got := ignoresCase(dir, []string{"First.txt", "Second.txt"}); got {
 		t.Errorf("ignoresCase = true, want false")
 	}
