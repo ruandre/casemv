@@ -630,6 +630,17 @@ func TestTextModeStopsAtCRLFEmptyLine(t *testing.T) {
 	}
 }
 
+// Only the line terminator goes; a carriage return before it is content.
+func TestTextModeStripsOnlyTheLineTerminator(t *testing.T) {
+	got := runCLI(t, "A\r\r\nB\r\n", "lower", "--text")
+	if got.err != nil {
+		t.Fatalf("run: %v", got.err)
+	}
+	if want := "a\r\nb\n"; got.out != want {
+		t.Errorf("output = %q, want %q", got.out, want)
+	}
+}
+
 func TestTextModeProcessesLineWithoutTrailingNewline(t *testing.T) {
 	got := runCLI(t, "First Line\nSecond Line", "kebab", "--text")
 	if got.err != nil {

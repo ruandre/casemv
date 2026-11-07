@@ -139,7 +139,7 @@ func readLine(ctx context.Context, reader *bufio.Reader) (line string, isLast bo
 
 // convertLine formats line without its terminator; blank lines stay blank.
 func convertLine(convention casing.Convention, line string) string {
-	line = strings.TrimRight(line, "\r\n")
+	line = strings.TrimSuffix(strings.TrimSuffix(line, "\n"), "\r")
 	if line == "" {
 		return ""
 	}
