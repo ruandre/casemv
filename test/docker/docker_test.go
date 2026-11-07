@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -101,7 +102,8 @@ cd /tmp/t && find . | LC_ALL=C sort`)
 
 // Kernels before 5.6 lack openat2, and older container runtimes deny syscalls
 // their seccomp profile does not list with EPERM instead of ENOSYS. Either way
-// renames must fall back to os.Root rather than fail.
+// renames must fall back rather than fail, and the rename package's tests,
+// symlink refusal included, must still pass.
 func TestRenameWithoutOpenat2(t *testing.T) {
 	buildImage(t)
 	for name, errno := range map[string]int{"EPERM": 1, "ENOSYS": 38} {
@@ -114,12 +116,14 @@ func TestRenameWithoutOpenat2(t *testing.T) {
 			if err := os.WriteFile(path, []byte(profile), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			args := append(append([]string{}, runArgs...), "--security-opt", "seccomp="+path, image,
-				"sh", "-c", `set -eu
+			seccomp := slices.Concat(runArgs, []string{"--security-opt", "seccomp=" + path, image})
+			dockerRun(t, slices.Concat(seccomp, []string{"go", "test", "-count=1", "./internal/rename/"})...)
+
+			args := slices.Concat(seccomp, []string{"sh", "-c", `set -eu
 mkdir -p "/work/A Dir"
 touch "/work/A Dir/B File.txt"
 casemv snake /work -r -D --quiet
-cd /work && find . | LC_ALL=C sort`)
+cd /work && find . | LC_ALL=C sort`})
 			out := dockerRun(t, args...)
 
 			want := ".\n./a_dir\n./a_dir/b_file.txt"

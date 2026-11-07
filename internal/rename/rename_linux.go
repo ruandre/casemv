@@ -5,41 +5,38 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
 
+const dirHandleFlags = unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC
+
 // targetDir renames entries beneath the open target directory.
 type targetDir struct {
 	fd int
-	// root serves systems where openat2 is unavailable.
-	root *os.Root
 }
 
 func openTargetDir(path string) (*targetDir, error) {
-	fd, err := unix.Open(path, unix.O_PATH|unix.O_DIRECTORY|unix.O_CLOEXEC, 0)
+	fd, err := unix.Open(path, dirHandleFlags, 0)
 	if err != nil {
 		return nil, &os.PathError{Op: "open", Path: path, Err: err}
 	}
-	root, err := os.OpenRoot(path)
-	if err != nil {
-		return nil, errors.Join(err, unix.Close(fd))
-	}
-	return &targetDir{fd: fd, root: root}, nil
+	return &targetDir{fd: fd}, nil
 }
 
-func (t *targetDir) close() error { return errors.Join(unix.Close(t.fd), t.root.Close()) }
+func (t *targetDir) close() error { return unix.Close(t.fd) }
 
 // rename gives entry from the new name to inside dir. Dir resolves beneath the
 // target in one openat2 call that refuses symlinks, so a link swapped in after
 // planning cannot redirect the rename, and the cost does not grow with depth.
 func (t *targetDir) rename(dir, from, to string) error {
 	dirfd, err := unix.Openat2(t.fd, dir, &unix.OpenHow{
-		Flags:   unix.O_PATH | unix.O_DIRECTORY | unix.O_CLOEXEC,
+		Flags:   dirHandleFlags,
 		Resolve: unix.RESOLVE_BENEATH | unix.RESOLVE_NO_SYMLINKS,
 	})
 	if openat2Unavailable(err) {
-		return t.renameThroughRoot(dir, from, to)
+		return t.renameWithoutOpenat2(dir, from, to)
 	}
 	if err != nil {
 		return err
@@ -56,25 +53,40 @@ func openat2Unavailable(err error) bool {
 	return errors.Is(err, unix.ENOSYS) || errors.Is(err, unix.EPERM)
 }
 
-// renameThroughRoot keeps renames inside the target, but follows symlinks
-// that stay inside it, and resolves dir one component at a time.
-func (t *targetDir) renameThroughRoot(dir, from, to string) error {
-	handle, err := t.root.Open(dir)
+// renameWithoutOpenat2 gives the openat2 guarantee by resolving dir one
+// component at a time, each opened with O_NOFOLLOW; the cost grows with depth.
+func (t *targetDir) renameWithoutOpenat2(dir, from, to string) error {
+	dirfd, err := openEachComponent(t.fd, dir)
 	if err != nil {
 		return err
 	}
-	//nolint:errcheck // read-only directory handle; closing it cannot lose data
-	defer handle.Close()
+	//nolint:errcheck // O_PATH handle; closing it cannot lose data
+	defer unix.Close(dirfd)
+	return renameAt(dirfd, from, to)
+}
 
-	conn, err := handle.SyscallConn()
-	if err != nil {
-		return err
+// openEachComponent opens dir, a clean path relative to rootfd, refusing ".."
+// with EXDEV as RESOLVE_BENEATH does.
+func openEachComponent(rootfd int, dir string) (int, error) {
+	fd, err := unix.Openat(rootfd, ".", dirHandleFlags, 0)
+	if err != nil || dir == "." {
+		return fd, err
 	}
-	var renameErr error
-	if err := conn.Control(func(fd uintptr) { renameErr = renameAt(int(fd), from, to) }); err != nil {
-		return err
+	for component := range strings.SplitSeq(dir, "/") {
+		next := -1
+		if component == ".." {
+			err = unix.EXDEV
+		} else {
+			next, err = unix.Openat(fd, component, dirHandleFlags|unix.O_NOFOLLOW, 0)
+		}
+		//nolint:errcheck,gosec // O_PATH handle; closing it cannot lose data
+		unix.Close(fd)
+		if err != nil {
+			return -1, err
+		}
+		fd = next
 	}
-	return renameErr
+	return fd, nil
 }
 
 func renameAt(dirfd int, from, to string) error {

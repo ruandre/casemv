@@ -91,3 +91,39 @@ func assertNames(t *testing.T, dir string, want ...string) {
 		t.Errorf("entries = %q, want %q", got, want)
 	}
 }
+
+// Without openat2, dir resolves one component at a time and must still refuse
+// symlinks, including ones that stay inside the target, and "..".
+func TestRenameWithoutOpenat2StaysBeneathTheTargetWithoutSymlinks(t *testing.T) {
+	root := t.TempDir()
+	for _, dir := range []string{"Kept", "A/B"} {
+		if err := os.MkdirAll(filepath.Join(root, dir), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		createFile(t, filepath.Join(root, dir, "My File.txt"))
+	}
+	if err := os.Symlink("Kept", filepath.Join(root, "Sub")); err != nil {
+		t.Fatal(err)
+	}
+	target, err := openTargetDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := target.close(); err != nil {
+			t.Error(err)
+		}
+	})
+
+	for _, dir := range []string{"Sub", "A/../Sub", ".."} {
+		if err := target.renameWithoutOpenat2(dir, "My File.txt", "my-file.txt"); err == nil {
+			t.Errorf("rename in %q succeeded, want refusal", dir)
+		}
+	}
+	assertNames(t, filepath.Join(root, "Kept"), "My File.txt")
+
+	if err := target.renameWithoutOpenat2("A/B", "My File.txt", "my-file.txt"); err != nil {
+		t.Fatalf("rename in A/B: %v", err)
+	}
+	assertNames(t, filepath.Join(root, "A", "B"), "my-file.txt")
+}
