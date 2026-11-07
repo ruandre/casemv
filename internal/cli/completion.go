@@ -86,7 +86,7 @@ func (c completer) completeArgs(
 // leaves no default convention.
 func (c completer) load(cmd *cobra.Command) (defaultConvention string, isText bool) {
 	err := loadConfig(c.v, cmd, *c.configFile)
-	isText = c.v.GetBool("text")
+	isText = isTextMode(cmd)
 	if err != nil {
 		return "", isText
 	}

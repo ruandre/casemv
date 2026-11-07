@@ -23,6 +23,7 @@ const (
 	configName = "casemv"
 	configKey  = "config"
 	excludeKey = "exclude"
+	textKey    = "text"
 )
 
 // envPrefix starts every environment variable casemv reads.
@@ -111,7 +112,7 @@ func NewRootCmd() *cobra.Command {
 	flags.BoolP("dry-run", "n", false, "print the planned renames without touching the filesystem")
 	flags.BoolP("quiet", "q", false, "suppress progress and summary output")
 	flags.BoolP("lower-ext", "x", false, "lowercase file extensions as well")
-	flags.Bool("text", false, "convert lines from stdin to stdout instead of renaming files")
+	flags.Bool(textKey, false, "convert lines from stdin to stdout instead of renaming files")
 
 	registerCompletions(cmd, completer{v: v, configFile: &configFile})
 
@@ -168,7 +169,7 @@ func resolveSettings(v *viper.Viper, cmd *cobra.Command, args []string) (setting
 	if err != nil {
 		return settings{}, err
 	}
-	text := v.GetBool("text")
+	text := isTextMode(cmd)
 	if text {
 		if err := validateTextMode(cmd, parsed.target); err != nil {
 			return settings{}, err
@@ -196,6 +197,14 @@ func excludePatterns(v *viper.Viper) []string {
 		return filepath.SplitList(list)
 	}
 	return v.GetStringSlice(excludeKey)
+}
+
+// isTextMode reads --text from the command line alone: validateSettings
+// rejects it anywhere else, and completion must see it even when the config
+// fails to load.
+func isTextMode(cmd *cobra.Command) bool {
+	text, err := cmd.Flags().GetBool(textKey)
+	return err == nil && text
 }
 
 // validateTextMode rejects only flags given on the command line: a config file

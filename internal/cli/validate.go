@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strconv"
 
@@ -22,12 +23,25 @@ func validateSettings(v *viper.Viper, cmd *cobra.Command) error {
 		if flag == nil {
 			return fmt.Errorf("unknown config key %q", key)
 		}
-		if key == configKey && v.InConfig(key) {
-			return errors.New(`config key "config" is not allowed: set --config or CASEMV_CONFIG instead`)
+		if err := checkSource(v, key); err != nil {
+			return err
 		}
 		if err := checkType(key, flag.Value.Type(), v.Get(key)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// checkSource rejects keys only the command line may set. A stored text
+// default would turn every run into a stdin filter. Like viper, it ignores an
+// empty environment variable.
+func checkSource(v *viper.Viper, key string) error {
+	switch {
+	case key == configKey && v.InConfig(key):
+		return errors.New(`config key "config" is not allowed: set --config or CASEMV_CONFIG instead`)
+	case key == textKey && (v.InConfig(key) || os.Getenv(envPrefix+"_TEXT") != ""):
+		return errors.New(`"text" cannot be set in the config file or CASEMV_TEXT: pass --text`)
 	}
 	return nil
 }

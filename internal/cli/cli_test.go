@@ -583,6 +583,33 @@ func TestTextModeIgnoresRenameDefaults(t *testing.T) {
 	}
 }
 
+// A stored text default would turn every run into a stdin filter.
+func TestTextModeIsCommandLineOnly(t *testing.T) {
+	tests := []struct {
+		name   string
+		config string
+		env    map[string]string
+	}{
+		{"config file", "text: true\n", nil},
+		{"environment", "", map[string]string{"CASEMV_TEXT": "true"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			for key, value := range tc.env {
+				t.Setenv(key, value)
+			}
+			root := makeTree(t, "My File.txt")
+
+			got := runCLIWithConfigHome(t, configHomeWith(t, tc.config), "", "kebab", root)
+
+			if want := `"text" cannot be set`; got.err == nil || !strings.Contains(got.err.Error(), want) {
+				t.Errorf("error = %v, want substring %q", got.err, want)
+			}
+			assertTree(t, root, "My File.txt")
+		})
+	}
+}
+
 func TestTextModeAcceptsFileFlagsSetToFalse(t *testing.T) {
 	got := runCLI(t, "My File\n", "kebab", "--text", "--dry-run=false", "--recursive=false")
 	if got.err != nil {
