@@ -112,11 +112,11 @@ func (c Convention) formatStem(stem string) string {
 	if c == Lower {
 		return lowerWord(stem)
 	}
+	s := styleFor(c)
 	words := splitWords(stem)
 	if len(words) == 0 {
 		return ""
 	}
-	s := styleFor(c)
 
 	var b strings.Builder
 	b.Grow(len(stem) + len(s.separator)*(len(words)-1))

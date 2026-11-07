@@ -422,3 +422,24 @@ func assertNormalFormsAgree(t *testing.T, convention casing.Convention, text str
 		t.Errorf("%s.FormatText(NFD %+q) = %+q, want %+q as for NFC", convention, text, got, want)
 	}
 }
+
+// Format and FormatText document a panic for an invalid convention; it must
+// not depend on the input holding a word.
+func TestInvalidConventionPanicsWhateverTheInput(t *testing.T) {
+	calls := map[string]func(){
+		"Format with words":    func() { casing.Convention("invalid").Format("My File.txt", false) },
+		"Format without words": func() { casing.Convention("invalid").Format("___.txt", false) },
+		"FormatText empty":     func() { casing.Convention("").FormatText("") },
+		"LowerExtension":       func() { casing.LowerExtension{Convention: "invalid"}.Format("___.TXT", false) },
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Error("no panic, want one for an invalid convention")
+				}
+			}()
+			call()
+		})
+	}
+}
