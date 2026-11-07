@@ -48,13 +48,17 @@ run = "hk check --all"
 description = "Run golangci-lint; extra flags (e.g. --fix) go to golangci-lint"
 run = "golangci-lint run ./..."
 
+[tasks.vet-cross]
+description = "Vet the non-Linux build, which no test run covers"
+run = ["GOOS=darwin go vet ./...", "GOOS=windows go vet ./..."]
+
 [tasks.vuln]
 description = "Report known vulnerabilities reachable from this code"
 run = "govulncheck ./..."
 
 [tasks.ci]
-description = "Run everything CI runs (check, vuln, tests), plus the Docker suite"
-depends = ["check", "vuln", "test-race", "test-e2e", "test-docker"]
+description = "Run everything CI runs (check, vet-cross, vuln, tests), plus the Docker suite"
+depends = ["check", "vet-cross", "vuln", "test-race", "test-e2e", "test-docker"]
 
 # --- Test ---
 

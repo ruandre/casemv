@@ -115,12 +115,13 @@ mise tasks                    # list all tasks
 | `test [-- flags]`, `test-race`               | Unit and CLI tests                              |
 | `test-e2e`                                   | Built binary against real trees                 |
 | `test-docker`                                | All suites in a no-network container            |
-| `ci`                                         | `check`, `vuln`, every test suite               |
+| `vet-cross`                                  | `go vet` for darwin and windows                 |
+| `ci`                                         | `check`, `vet-cross`, `vuln`, every test suite  |
 | `fuzz [target] [duration]`, `bench`, `cover` | Fuzzing, benchmarks, coverage                   |
 | `vuln`, `build`, `install`                   | govulncheck, `bin/casemv`, `~/.local/bin`       |
 
 - **Hooks:** `pre-commit` applies fixes; `pre-push` runs `test-race`.
-- **CI:** runs `check`, `vuln`, `test-race`, and `test-e2e`.
+- **CI:** runs `check`, `vet-cross`, `vuln`, `test-race`, and `test-e2e`.
 - **Lint:** `.golangci.yml` enables all linters; each disabled one has a
   reason. `depguard` limits imports to its allowlist.
 - **Case-folding tests:** these run on a `casefold` tmpfs inside `unshare -rm`,

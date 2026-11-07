@@ -28,6 +28,7 @@ jobs:
         with:
           version: ${{ env.MISE_VERSION }}
       - run: mise run check
+      - run: mise run vet-cross
       - run: mise run vuln
 
   test:
