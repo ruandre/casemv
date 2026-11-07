@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -126,7 +127,9 @@ func withPrefix(candidates []string, prefix string) []string {
 }
 
 // directoriesWithPrefix lists visible directories in the working directory,
-// following symlinks, each with a trailing slash.
+// following symlinks, each with a trailing slash. Names holding control
+// characters are left out: cobra's output separates candidates with newlines
+// and descriptions with tabs.
 func directoriesWithPrefix(prefix string) []string {
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -136,7 +139,7 @@ func directoriesWithPrefix(prefix string) []string {
 	for _, entry := range entries {
 		name := entry.Name()
 		isHidden := strings.HasPrefix(name, ".")
-		if isHidden || !strings.HasPrefix(name, prefix) {
+		if isHidden || !strings.HasPrefix(name, prefix) || strings.ContainsFunc(name, unicode.IsControl) {
 			continue
 		}
 		if info, err := os.Stat(name); err == nil && info.IsDir() {

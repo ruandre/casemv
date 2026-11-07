@@ -34,9 +34,12 @@ func complete(t *testing.T, configHome string, line ...string) completion {
 	return parseCompletion(t, got.out)
 }
 
+// testTreeForCompletion holds directories whose names would break cobra's
+// completion output, which separates candidates with newlines and
+// descriptions with tabs; none may be offered.
 func testTreeForCompletion(t *testing.T) string {
 	t.Helper()
-	return makeTree(t, "docs/", "src/", ".git/", "notes.txt")
+	return makeTree(t, "docs/", "src/", ".git/", "notes.txt", "tab\tname/", "new\nline/")
 }
 
 func parseCompletion(t *testing.T, out string) completion {
