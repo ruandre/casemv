@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -79,17 +78,6 @@ func openDir(t *testing.T, dir string) int {
 		}
 	})
 	return fd
-}
-
-func assertNames(t *testing.T, dir string, want ...string) {
-	t.Helper()
-	got, err := readNames(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !slices.Equal(got, want) {
-		t.Errorf("entries = %q, want %q", got, want)
-	}
 }
 
 // Without openat2, dir resolves one component at a time and must still refuse

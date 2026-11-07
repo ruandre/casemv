@@ -3,15 +3,14 @@
 package rename
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-// targetDir renames entries beneath the target with check-then-rename: only
-// Linux gets the atomic RENAME_NOREPLACE guarantee.
+// targetDir renames entries beneath the target through rootRenamer: only Linux
+// gets the atomic RENAME_NOREPLACE and openat2 guarantees.
 type targetDir struct {
-	root *os.Root
+	renamer rootRenamer
 }
 
 func openTargetDir(path string) (*targetDir, error) {
@@ -19,21 +18,11 @@ func openTargetDir(path string) (*targetDir, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &targetDir{root: root}, nil
+	return &targetDir{renamer: rootRenamer{root: root}}, nil
 }
 
-func (t *targetDir) close() error { return t.root.Close() }
+func (t *targetDir) close() error { return t.renamer.root.Close() }
 
 func (t *targetDir) rename(dir, from, to string) error {
-	from, to = filepath.Join(dir, from), filepath.Join(dir, to)
-	if target, err := t.root.Lstat(to); err == nil {
-		source, err := t.root.Lstat(from)
-		if err != nil {
-			return err
-		}
-		if !os.SameFile(source, target) {
-			return fs.ErrExist
-		}
-	}
-	return t.root.Rename(from, to)
+	return t.renamer.rename(filepath.ToSlash(dir), from, to)
 }
