@@ -878,3 +878,105 @@ func TestEachRenameIsWrittenAsItLands(t *testing.T) {
 		t.Errorf("%d writes, want %d: one per rename plus the summary", out.writes, want)
 	}
 }
+
+func TestExcludeSources(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		env    string
+		config string
+	}{
+		{"flags", []string{"-e", "Skip Me.txt", "-e", "*.log"}, "", ""},
+		{"environment splits at colons", nil, "Skip Me.txt:*.log", ""},
+		{"config list", nil, "", "exclude: [Skip Me.txt, '*.log']\n"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := makeTree(t, "Skip Me.txt", "Skip Me.log", "Keep Me.txt")
+			if tc.env != "" {
+				t.Setenv("CASEMV_EXCLUDE", tc.env)
+			}
+			args := append([]string{"kebab", root}, tc.args...)
+			if tc.config != "" {
+				args = append(args, "--config", writeConfig(t, tc.config))
+			}
+
+			if got := runCLI(t, "", args...); got.err != nil {
+				t.Fatalf("run: %v (output %q)", got.err, got.out)
+			}
+			assertTree(t, root, "Skip Me.txt", "Skip Me.log", "keep-me.txt")
+		})
+	}
+}
+
+// Viper reads a mistyped value as empty, which would silently drop excludes.
+func TestMistypedConfigValuesAreErrors(t *testing.T) {
+	for _, config := range []string{
+		"convention: [kebab]\n",
+		"convention: {a: 1}\n",
+		"exclude: {a: 1}\n",
+		"exclude: 123\n",
+		"exclude: [1]\n",
+	} {
+		t.Run(config, func(t *testing.T) {
+			root := makeTree(t, "My File.txt")
+
+			got := runCLI(t, "", "kebab", root, "--config", writeConfig(t, config))
+
+			if got.err == nil || !strings.Contains(got.err.Error(), "invalid") {
+				t.Errorf("error = %v, want an invalid value error", got.err)
+			}
+			assertTree(t, root, "My File.txt")
+		})
+	}
+}
+
+func TestConfigKeyInsideConfigIsAnError(t *testing.T) {
+	root := makeTree(t, "My File.txt")
+	config := writeConfig(t, "config: "+writeConfig(t, "recursive: true\n")+"\n")
+
+	got := runCLI(t, "", "kebab", root, "--config", config)
+
+	if got.err == nil || !strings.Contains(got.err.Error(), `"config"`) {
+		t.Errorf("error = %v, want an error naming the config key", got.err)
+	}
+	assertTree(t, root, "My File.txt")
+}
+
+func TestConfigEnvironmentSelectsTheConfigFile(t *testing.T) {
+	t.Run("used without --config", func(t *testing.T) {
+		root := makeTree(t, "Sub Dir/My File.txt")
+		t.Setenv("CASEMV_CONFIG", writeConfig(t, "recursive: true\n"))
+
+		if got := runCLI(t, "", "kebab", root); got.err != nil {
+			t.Fatalf("run: %v", got.err)
+		}
+		assertTree(t, root, "Sub Dir/", "Sub Dir/my-file.txt")
+	})
+	t.Run("must exist", func(t *testing.T) {
+		t.Setenv("CASEMV_CONFIG", filepath.Join(t.TempDir(), "absent.yaml"))
+
+		if got := runCLI(t, "", "kebab", makeTree(t)); got.err == nil {
+			t.Error("run succeeded, want an error for a missing CASEMV_CONFIG file")
+		}
+	})
+	t.Run("--config wins", func(t *testing.T) {
+		root := makeTree(t, "My File.txt")
+		t.Setenv("CASEMV_CONFIG", writeConfig(t, "recursive: maybe\n"))
+
+		if got := runCLI(t, "", "kebab", root, "--config", writeConfig(t, "dir: true\n")); got.err != nil {
+			t.Fatalf("run: %v", got.err)
+		}
+		assertTree(t, root, "my-file.txt")
+	})
+}
+
+func TestConfigErrorsAreReportedInKeyOrder(t *testing.T) {
+	config := writeConfig(t, "h: 1\ng: 1\nf: 1\ne: 1\nd: 1\nc: 1\nb: 1\na: 1\n")
+
+	got := runCLI(t, "", "kebab", makeTree(t), "--config", config)
+
+	if got.err == nil || !strings.Contains(got.err.Error(), `unknown config key "a"`) {
+		t.Errorf("error = %v, want the first key in order reported", got.err)
+	}
+}

@@ -71,9 +71,10 @@ echo 'My File' | casemv kebab --text  # my-file
 ## Configuration
 
 Order: flags, then `CASEMV_<FLAG>` environment variables (e.g.
-`CASEMV_DRY_RUN`), then `$XDG_CONFIG_HOME/casemv/casemv.yaml` or
-`--config`. The working directory is never searched. Invalid booleans and
-unknown keys are errors.
+`CASEMV_DRY_RUN`), then the config file: `--config`, else `CASEMV_CONFIG`, else
+`$XDG_CONFIG_HOME/casemv/casemv.yaml`. The working directory is never searched.
+Unknown keys and mistyped values are errors. `CASEMV_EXCLUDE` separates
+patterns with `:`, like `PATH`.
 
 ```yaml
 convention: kebab # then a bare `casemv` or `casemv ./docs` converts to kebab

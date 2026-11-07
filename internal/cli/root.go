@@ -19,7 +19,14 @@ import (
 	"github.com/ruandre/casemv/internal/casing"
 )
 
-const configName = "casemv"
+const (
+	configName = "casemv"
+	configKey  = "config"
+	excludeKey = "exclude"
+)
+
+// envPrefix starts every environment variable casemv reads.
+var envPrefix = strings.ToUpper(configName)
 
 // exitInterrupted is conventional shell code for SIGINT termination.
 const exitInterrupted = 130
@@ -94,12 +101,13 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	flags := cmd.Flags()
-	flags.StringVar(&configFile, "config", "", "config file (default: $XDG_CONFIG_HOME/casemv/casemv.yaml)")
+	flags.StringVar(&configFile, configKey, "",
+		"config file (default: $CASEMV_CONFIG, else $XDG_CONFIG_HOME/casemv/casemv.yaml)")
 	flags.StringP(conventionKey, "c", "", "convention to use when no convention argument is given")
 	flags.BoolP("recursive", "r", false, "rename entries in subdirectories as well")
 	flags.BoolP("dir", "D", false, "rename directories as well as files")
 	flags.BoolP("hidden", "H", false, "include dot-prefixed entries (skipped by default)")
-	flags.StringArrayP("exclude", "e", nil,
+	flags.StringArrayP(excludeKey, "e", nil,
 		"skip glob matches; repeatable; a leading or inner slash matches the path, a trailing one only directories")
 	flags.BoolP("dry-run", "n", false, "print the planned renames without touching the filesystem")
 	flags.BoolP("quiet", "q", false, "suppress progress and summary output")
@@ -118,12 +126,14 @@ func NewRootCmd() *cobra.Command {
 }
 
 func loadConfig(v *viper.Viper, cmd *cobra.Command, configFile string) error {
-	v.SetEnvPrefix(strings.ToUpper(configName))
+	v.SetEnvPrefix(envPrefix)
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 	v.AutomaticEnv()
 	if err := v.BindPFlags(cmd.Flags()); err != nil {
 		return fmt.Errorf("bind flags: %w", err)
 	}
+
+	configFile = cmp.Or(configFile, os.Getenv(envPrefix+"_CONFIG"))
 
 	if configFile != "" {
 		v.SetConfigFile(configFile)
@@ -147,7 +157,8 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command, configFile string) error {
 	return validateDefaultConvention(v)
 }
 
-// isMissingDefaultConfig reports absent optional config; an explicit --config must exist.
+// isMissingDefaultConfig reports absent optional config; a file named by
+// --config or CASEMV_CONFIG must exist.
 func isMissingDefaultConfig(err error, configFile string) bool {
 	var notFound viper.ConfigFileNotFoundError
 	return configFile == "" && (errors.As(err, &notFound) || errors.Is(err, os.ErrNotExist))
@@ -171,12 +182,21 @@ func resolveSettings(v *viper.Viper, cmd *cobra.Command, args []string) (setting
 		recursive:      v.GetBool("recursive"),
 		dirs:           v.GetBool("dir"),
 		hidden:         v.GetBool("hidden"),
-		exclude:        v.GetStringSlice("exclude"),
+		exclude:        excludePatterns(v),
 		dryRun:         v.GetBool("dry-run"),
 		quiet:          v.GetBool("quiet"),
 		lowerExtension: v.GetBool("lower-ext"),
 		text:           text,
 	}, nil
+}
+
+// excludePatterns splits a string value, as CASEMV_EXCLUDE gives, like PATH:
+// patterns hold spaces and commas far more often than colons.
+func excludePatterns(v *viper.Viper) []string {
+	if list, ok := v.Get(excludeKey).(string); ok {
+		return filepath.SplitList(list)
+	}
+	return v.GetStringSlice(excludeKey)
 }
 
 // validateTextMode rejects only flags given on the command line: a config file

@@ -29,7 +29,7 @@ func registerCompletions(cmd *cobra.Command, c completer) {
 	cmd.PersistentPreRunE = useOwnFishScript
 	err := errors.Join(
 		cmd.RegisterFlagCompletionFunc(conventionKey, completeConventions),
-		cmd.MarkFlagFilename("config", "yaml", "yml"),
+		cmd.MarkFlagFilename(configKey, "yaml", "yml"),
 	)
 	if err != nil {
 		panic("casemv: register completions: " + err.Error())
