@@ -261,3 +261,47 @@ func TestIgnoresCaseLooksPastAMissingNonASCIIProbe(t *testing.T) {
 		t.Error("ignoresCase = false, want true")
 	}
 }
+
+// Simple-folding filesystems (vfat, NTFS, APFS) hold "straße" and "strasse"
+// side by side; full folding makes them one key, but neither is renamed.
+func TestConflictsInIgnoresClaimsNoRenameTakes(t *testing.T) {
+	const dir = "/tree"
+	names := []string{"My File.txt", "strasse.txt", "straße.txt"}
+	changed := map[string]string{filepath.Join(dir, "My File.txt"): "my-file.txt"}
+
+	if got := conflictsIn(dir, names, changed, true); len(got) != 0 {
+		t.Errorf("got %+v, want no conflicts", got)
+	}
+}
+
+// The filesystem can resolve a target that the scanned names do not show,
+// here one created after the scan; that must be reported alongside a name
+// collision in the same directory, not only once it is fixed.
+func TestCheckCollisionsReportsOccupiedTargetsWithNameCollisions(t *testing.T) {
+	dir := t.TempDir()
+	names := []string{"A B.txt", "C D.txt", "a_b.txt"}
+	for _, name := range append(names, "c-d.txt") {
+		if err := writeEmpty(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	changed := map[string]string{
+		filepath.Join(dir, "A B.txt"): "a-b.txt",
+		filepath.Join(dir, "a_b.txt"): "a-b.txt",
+		filepath.Join(dir, "C D.txt"): "c-d.txt",
+	}
+
+	err := checkCollisions(tree{siblings: map[string][]string{dir: names}}, changed)
+
+	collision, ok := errors.AsType[*CollisionError](err)
+	if !ok {
+		t.Fatalf("checkCollisions error = %v, want *CollisionError", err)
+	}
+	got := make([]string, len(collision.Conflicts))
+	for i, c := range collision.Conflicts {
+		got[i] = c.Name
+	}
+	if want := []string{"a-b.txt", "c-d.txt"}; !slices.Equal(got, want) {
+		t.Errorf("conflict names = %q, want %q", got, want)
+	}
+}

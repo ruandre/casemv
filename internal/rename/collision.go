@@ -46,6 +46,9 @@ func (e *CollisionError) Error() string {
 type claim struct {
 	name    string
 	sources []string
+	// renamed is set when a rename lands on the claim. Entries that all keep
+	// their names cannot collide, even when folding makes their keys equal.
+	renamed bool
 }
 
 // checkCollisions compares the post-rename name of every child of every
@@ -70,10 +73,8 @@ func checkCollisions(t tree, changed map[string]string) error {
 		// case-folding filesystems (vfat, exfat, ntfs, cifs, ext4 casefold),
 		// and there os.Rename replaces a destination differing only by case.
 		found := conflictsIn(dir, names, changed, ignoresCase(dir, names))
-		if len(found) == 0 {
-			found = occupiedTargets(dir, names, changed)
-		}
 		conflicts = append(conflicts, found...)
+		conflicts = append(conflicts, occupiedTargets(dir, names, changed, sourcesOf(found))...)
 	}
 	if len(conflicts) == 0 {
 		return nil
@@ -97,7 +98,7 @@ func conflictsIn(dir string, names []string, changed map[string]string, foldCase
 		if isChanged {
 			final = newName
 		}
-		claims.add(name, final)
+		claims.add(name, final, isChanged)
 	}
 	if !affected {
 		return nil
@@ -131,16 +132,17 @@ func newDirClaims(size int, foldCase bool) dirClaims {
 	}
 }
 
-func (d dirClaims) add(name, final string) {
+func (d dirClaims) add(name, final string, isRenamed bool) {
 	current := d.key(name)
 	d.occupants[current] = append(d.occupants[current], name)
 
 	target := d.key(final)
 	if c, ok := d.byName[target]; ok {
 		c.sources = append(c.sources, name)
+		c.renamed = c.renamed || isRenamed
 		return
 	}
-	d.byName[target] = &claim{name: final, sources: []string{name}}
+	d.byName[target] = &claim{name: final, sources: []string{name}, renamed: isRenamed}
 }
 
 // addOccupants makes every other entry currently holding newName a claimant:
@@ -158,7 +160,7 @@ func (d dirClaims) addOccupants(name, newName string) {
 func (d dirClaims) conflicts(dir string) []Conflict {
 	var conflicts []Conflict
 	for _, c := range d.byName {
-		if len(c.sources) == 1 {
+		if !c.renamed || len(c.sources) == 1 {
 			continue
 		}
 		slices.Sort(c.sources)
@@ -179,13 +181,24 @@ func foldKey(name string) string {
 	return norm.NFD.String(cases.Fold().String(norm.NFD.String(name)))
 }
 
+func sourcesOf(conflicts []Conflict) map[string]bool {
+	sources := make(map[string]bool)
+	for _, c := range conflicts {
+		for _, source := range c.Sources {
+			sources[source] = true
+		}
+	}
+	return sources
+}
+
 // occupiedTargets asks the filesystem whether a target name already resolves
-// to another entry, catching folding rules foldKey does not model.
-func occupiedTargets(dir string, names []string, changed map[string]string) []Conflict {
+// to another entry, catching folding rules foldKey does not model. Names in
+// reported already conflict, so they are not probed again.
+func occupiedTargets(dir string, names []string, changed map[string]string, reported map[string]bool) []Conflict {
 	var conflicts []Conflict
 	for _, name := range names {
 		newName, ok := changed[filepath.Join(dir, name)]
-		if !ok {
+		if !ok || reported[name] {
 			continue
 		}
 		occupant, ok := occupantOf(dir, name, newName, names)
