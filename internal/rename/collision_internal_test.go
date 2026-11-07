@@ -336,3 +336,90 @@ func TestCheckCollisionsProbesEntriesListedAsOccupants(t *testing.T) {
 		t.Errorf("conflict names = %q, want %q", got, want)
 	}
 }
+
+// linkedDir is a directory whose lookups a test controls: it holds files,
+// plus links to them, and the scan lists only listed. An unlisted link stands
+// in for a folding lookup. A first listed name of "A.txt" with link "a.TXT"
+// makes ignoresCase report folding.
+type linkedDir struct {
+	files   []string
+	links   map[string]string
+	listed  []string
+	changed map[string]string
+}
+
+func (l linkedDir) check(t *testing.T) error {
+	t.Helper()
+	dir := t.TempDir()
+	for _, name := range l.files {
+		if err := writeEmpty(filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for link, existing := range l.links {
+		if err := os.Link(filepath.Join(dir, existing), filepath.Join(dir, link)); err != nil {
+			t.Skipf("hard links unsupported: %v", err)
+		}
+	}
+	changed := make(map[string]string, len(l.changed))
+	for name, newName := range l.changed {
+		changed[filepath.Join(dir, name)] = newName
+	}
+	return checkCollisions(tree{siblings: map[string][]string{dir: l.listed}}, changed)
+}
+
+// vfat, NTFS and APFS fold simply: "strasse.txt" does not find "straße.txt"
+// there, though full folding, which foldKey models, makes them one key.
+func TestCheckCollisionsDropsCollisionsOnlyFullFoldingMakes(t *testing.T) {
+	tests := []struct {
+		name  string
+		links map[string]string
+	}{
+		{"target absent", map[string]string{"a.TXT": "A.txt"}},
+		{"target resolves to the source", map[string]string{"a.TXT": "A.txt", "strasse.txt": "STRASSE.TXT"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			names := []string{"A.txt", "STRASSE.TXT", "straße.txt"}
+			err := linkedDir{
+				files:   names,
+				links:   tc.links,
+				listed:  names,
+				changed: map[string]string{"STRASSE.TXT": "strasse.txt"},
+			}.check(t)
+			if err != nil {
+				t.Errorf("checkCollisions = %v, want nil", err)
+			}
+		})
+	}
+}
+
+func TestCheckCollisionsKeepsATargetAnotherEntryHolds(t *testing.T) {
+	changed := map[string]string{"Foo Bar.txt": "foo-bar.txt"}
+	tests := []struct {
+		name string
+		dir  linkedDir
+	}{
+		{"folding lookup finds the occupant", linkedDir{
+			files:   []string{"A.txt", "Foo Bar.txt", "foo-bar.TXT"},
+			links:   map[string]string{"a.TXT": "A.txt", "foo-bar.txt": "foo-bar.TXT"},
+			listed:  []string{"A.txt", "Foo Bar.txt", "foo-bar.TXT"},
+			changed: changed,
+		}},
+		// The target resolves to the source's file, but through another entry.
+		{"target is a hard link to the source", linkedDir{
+			files:   []string{"Foo Bar.txt"},
+			links:   map[string]string{"foo-bar.txt": "Foo Bar.txt"},
+			listed:  []string{"Foo Bar.txt", "foo-bar.txt"},
+			changed: changed,
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.dir.check(t)
+			if _, ok := errors.AsType[*CollisionError](err); !ok {
+				t.Errorf("checkCollisions = %v, want *CollisionError", err)
+			}
+		})
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -74,7 +75,7 @@ func checkCollisions(t tree, changed map[string]string) error {
 		// Detected per directory, not per platform: a Linux host still mounts
 		// case-folding filesystems (vfat, exfat, ntfs, cifs, ext4 casefold),
 		// and there os.Rename replaces a destination differing only by case.
-		found := conflictsIn(dir, names, changed, ignoresCase(dir, names))
+		found := confirmed(dir, conflictsIn(dir, names, changed, ignoresCase(dir, names)), changed)
 		conflicts = append(conflicts, found...)
 		for _, c := range occupiedTargets(dir, names, changed) {
 			if !isReported(found, c) {
@@ -185,6 +186,53 @@ func foldKey(name string) string {
 		return name
 	}
 	return norm.NFD.String(cases.Fold().String(norm.NFD.String(name)))
+}
+
+// confirmed drops conflicts the filesystem disproves. foldKey folds fully, but
+// vfat, NTFS and APFS fold simply, so "strasse.txt" and "straße.txt" can share
+// a key and still be two entries. Only a conflict with one renamed source can
+// be disproved: its other sources keep their names, so the rename is safe if
+// its target resolves to no entry, or to the source's own.
+func confirmed(dir string, conflicts []Conflict, changed map[string]string) []Conflict {
+	return slices.DeleteFunc(conflicts, func(c Conflict) bool { return isDisproved(dir, c, changed) })
+}
+
+func isDisproved(dir string, c Conflict, changed map[string]string) bool {
+	var renamed []string
+	for _, source := range c.Sources {
+		if _, ok := changed[filepath.Join(dir, source)]; ok {
+			renamed = append(renamed, source)
+		}
+	}
+	if len(renamed) != 1 {
+		return false
+	}
+	source := renamed[0]
+	target, err := os.Lstat(filepath.Join(dir, changed[filepath.Join(dir, source)]))
+	if errors.Is(err, fs.ErrNotExist) {
+		return true
+	}
+	return err == nil && isOwnEntry(dir, source, target, c.Sources)
+}
+
+// isOwnEntry tells whether target, the file a lookup found, is source's own
+// entry. The same file proves it only when no other source is a hard link to
+// it, which the lookup could have found instead.
+func isOwnEntry(dir, source string, target fs.FileInfo, sources []string) bool {
+	info, err := os.Lstat(filepath.Join(dir, source))
+	if err != nil || !os.SameFile(info, target) {
+		return false
+	}
+	for _, other := range sources {
+		if other == source {
+			continue
+		}
+		otherInfo, err := os.Lstat(filepath.Join(dir, other))
+		if err != nil || os.SameFile(otherInfo, info) {
+			return false
+		}
+	}
+	return true
 }
 
 // isReported tells whether found already holds c: a conflict over the same
