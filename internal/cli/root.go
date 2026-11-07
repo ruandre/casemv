@@ -100,7 +100,7 @@ func NewRootCmd() *cobra.Command {
 	flags.BoolP("dir", "D", false, "rename directories as well as files")
 	flags.BoolP("hidden", "H", false, "include dot-prefixed entries (skipped by default)")
 	flags.StringArrayP("exclude", "e", nil,
-		"skip entries matching a glob; repeatable, matched against the path when it contains a slash")
+		"skip glob matches; repeatable; a leading or inner slash matches the path, a trailing one only directories")
 	flags.BoolP("dry-run", "n", false, "print the planned renames without touching the filesystem")
 	flags.BoolP("quiet", "q", false, "suppress progress and summary output")
 	flags.BoolP("lower-ext", "x", false, "lowercase file extensions as well")

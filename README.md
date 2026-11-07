@@ -40,8 +40,10 @@ Words split on separators, case humps, and acronyms (`XMLHttpRequest` →
 | `--text`           | Convert stdin lines to stdout                |
 | `--config`         | Config file path                             |
 
-Exclude patterns use `path.Match`. With a slash, they match the path relative to
-the target, otherwise the base name.
+Exclude patterns use `path.Match` and read like `.gitignore` lines. A leading or
+inner slash matches the path relative to the target (`/*.txt`, `docs/old`);
+otherwise the base name at any depth. A trailing slash matches directories only
+(`node_modules/`).
 
 ```sh
 casemv snake ./docs -r -D             # whole tree, directories too

@@ -35,9 +35,9 @@ func scan(ctx context.Context, opts Options) (tree, error) {
 		return tree{}, err
 	}
 	w := walker{
-		opts:         opts,
-		matchesPaths: slices.ContainsFunc(opts.Exclude, func(p string) bool { return strings.ContainsRune(p, '/') }),
-		tree:         tree{root: root, siblings: make(map[string][]string)},
+		opts:     opts,
+		excludes: parseExcludes(opts.Exclude),
+		tree:     tree{root: root, siblings: make(map[string][]string)},
 	}
 	walk := func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -74,11 +74,9 @@ func resolveRoot(target string) (string, error) {
 
 // walker collects the tree while filepath.WalkDir visits each entry.
 type walker struct {
-	opts Options
-	// matchesPaths is set when an exclude pattern holds a slash, so relative
-	// paths are worth computing for every entry.
-	matchesPaths bool
-	tree         tree
+	opts     Options
+	excludes []excludePattern
+	tree     tree
 }
 
 func (w *walker) visit(p string, d fs.DirEntry) error {
@@ -95,7 +93,7 @@ func (w *walker) visit(p string, d fs.DirEntry) error {
 	if err != nil {
 		return fmt.Errorf("resolve %s relative to %s: %w", p, w.tree.root, err)
 	}
-	if w.excludes(rel, name) {
+	if w.isExcluded(rel, name, d.IsDir()) {
 		return skipSubtree(d)
 	}
 
@@ -114,15 +112,14 @@ func (w *walker) visit(p string, d fs.DirEntry) error {
 	return nil
 }
 
-func (w *walker) excludes(rel, name string) bool {
-	if len(w.opts.Exclude) == 0 {
+func (w *walker) isExcluded(rel, name string, isDir bool) bool {
+	if len(w.excludes) == 0 {
 		return false
 	}
-	var matchRel string
-	if w.matchesPaths {
-		matchRel = filepath.ToSlash(rel)
-	}
-	return w.opts.excludes(matchRel, name)
+	relPath := filepath.ToSlash(rel)
+	return slices.ContainsFunc(w.excludes, func(p excludePattern) bool {
+		return p.matches(relPath, name, isDir)
+	})
 }
 
 // skipSubtree stops walk from descending into skipped directory.

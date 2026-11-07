@@ -430,40 +430,90 @@ func TestExcludePatternMatchesNestedRelativePath(t *testing.T) {
 	)
 }
 
-func TestExcludeLeadingSlashOrDotSlash(t *testing.T) {
-	tests := []struct {
-		name    string
-		exclude []string
-		want    []string
-	}{
-		{
-			name:    "dot slash relative path",
-			exclude: []string{"./vendor/*"},
-			want:    []string{"keep-me.txt", "vendor/", "vendor/Lib File.js"},
-		},
-		{
-			name:    "leading slash relative path",
-			exclude: []string{"/vendor/*"},
-			want:    []string{"keep-me.txt", "vendor/", "vendor/Lib File.js"},
-		},
-		{
-			name:    "dot slash base name",
-			exclude: []string{"./*.txt"},
-			want:    []string{"Keep Me.txt", "vendor/", "vendor/lib-file.js"},
-		},
-		{
-			name:    "leading slash base name",
-			exclude: []string{"/*.txt"},
-			want:    []string{"Keep Me.txt", "vendor/", "vendor/lib-file.js"},
-		},
-	}
+// excludeCase is one Exclude pattern applied recursively to tree with Kebab.
+type excludeCase struct {
+	name    string
+	tree    []string
+	exclude string
+	want    []string
+}
+
+func runExcludeCases(t *testing.T, tests []excludeCase) {
+	t.Helper()
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			root := makeTree(t, "Keep Me.txt", "vendor/Lib File.js")
-			apply(t, rename.Options{Root: root, Recursive: true, Exclude: tc.exclude}, casing.Kebab)
+			root := makeTree(t, tc.tree...)
+			apply(t, rename.Options{Root: root, Recursive: true, Exclude: []string{tc.exclude}}, casing.Kebab)
 			assertTree(t, root, tc.want...)
 		})
 	}
+}
+
+// Exclude patterns read like .gitignore: a leading or inner slash anchors the
+// pattern to the target.
+func TestExcludeAnchoredPatterns(t *testing.T) {
+	runExcludeCases(t, []excludeCase{
+		{
+			name:    "dot slash anchors a path",
+			tree:    []string{"Keep Me.txt", "vendor/Lib File.js", "Sub/vendor/Deep File.js"},
+			exclude: "./vendor/*",
+			want:    []string{"keep-me.txt", "vendor/", "vendor/Lib File.js", "Sub/", "Sub/vendor/", "Sub/vendor/deep-file.js"},
+		},
+		{
+			name:    "leading slash anchors a path",
+			tree:    []string{"Keep Me.txt", "vendor/Lib File.js", "Sub/vendor/Deep File.js"},
+			exclude: "/vendor/*",
+			want:    []string{"keep-me.txt", "vendor/", "vendor/Lib File.js", "Sub/", "Sub/vendor/", "Sub/vendor/deep-file.js"},
+		},
+		{
+			name:    "dot slash anchors a base name glob",
+			tree:    []string{"Keep Me.txt", "vendor/Nested File.txt"},
+			exclude: "./*.txt",
+			want:    []string{"Keep Me.txt", "vendor/", "vendor/nested-file.txt"},
+		},
+		{
+			name:    "leading slash anchors a base name glob",
+			tree:    []string{"Keep Me.txt", "vendor/Nested File.txt"},
+			exclude: "/*.txt",
+			want:    []string{"Keep Me.txt", "vendor/", "vendor/nested-file.txt"},
+		},
+		{
+			name:    "repeated leading prefixes",
+			tree:    []string{"Keep Me.txt", "vendor/Nested File.txt"},
+			exclude: ".//./*.txt",
+			want:    []string{"Keep Me.txt", "vendor/", "vendor/nested-file.txt"},
+		},
+	})
+}
+
+// A trailing slash matches directories only, as in .gitignore.
+func TestExcludeDirectoryOnlyPatterns(t *testing.T) {
+	runExcludeCases(t, []excludeCase{
+		{
+			name:    "trailing slash matches directories at any depth",
+			tree:    []string{"My File.txt", "vendor/Lib File.js", "Sub/vendor/Deep File.js"},
+			exclude: "vendor/",
+			want:    []string{"my-file.txt", "vendor/", "vendor/Lib File.js", "Sub/", "Sub/vendor/", "Sub/vendor/Deep File.js"},
+		},
+		{
+			name:    "trailing slash skips files of that name",
+			tree:    []string{"Build Out/Log File.txt", "Sub/Build Out"},
+			exclude: "Build Out/",
+			want:    []string{"Build Out/", "Build Out/Log File.txt", "Sub/", "Sub/build-out"},
+		},
+		{
+			name:    "anchored directory",
+			tree:    []string{"vendor/Lib File.js", "Sub/vendor/Deep File.js"},
+			exclude: "/vendor/",
+			want:    []string{"vendor/", "vendor/Lib File.js", "Sub/", "Sub/vendor/", "Sub/vendor/deep-file.js"},
+		},
+		{
+			name:    "nested directory path",
+			tree:    []string{"vendor/Lib File.js", "Sub/vendor/Deep File.js"},
+			exclude: "Sub/vendor/",
+			want:    []string{"vendor/", "vendor/lib-file.js", "Sub/", "Sub/vendor/", "Sub/vendor/Deep File.js"},
+		},
+	})
 }
 
 func TestApplyStopsAtTheFirstFailureAndReportsProgress(t *testing.T) {

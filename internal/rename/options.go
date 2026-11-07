@@ -14,9 +14,10 @@ type Options struct {
 	Recursive     bool
 	IncludeDirs   bool
 	IncludeHidden bool
-	// Exclude holds glob patterns in path.Match syntax. A pattern containing a
-	// slash is matched against the entry's slash-separated path relative to
-	// Root; otherwise it is matched against the base name.
+	// Exclude holds glob patterns in path.Match syntax, read like .gitignore
+	// lines. A pattern with a leading or inner slash matches the entry's
+	// slash-separated path relative to Root; otherwise it matches the base name
+	// at any depth. A trailing slash matches directories only.
 	Exclude []string
 }
 
@@ -25,7 +26,7 @@ func (o Options) validate() error {
 		return errors.New("target directory is empty")
 	}
 	for _, pattern := range o.Exclude {
-		if _, err := path.Match(normalizePattern(pattern), "x"); err != nil {
+		if _, err := path.Match(parseExclude(pattern).glob, "x"); err != nil {
 			return fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
 		}
 	}
@@ -35,28 +36,47 @@ func (o Options) validate() error {
 // isHidden reports Unix dot-prefix convention.
 func isHidden(name string) bool { return strings.HasPrefix(name, ".") }
 
-func (o Options) excludes(relPath, name string) bool {
-	for _, pattern := range o.Exclude {
-		pattern = normalizePattern(pattern)
-		if pattern == "" {
-			continue
-		}
-		subject := name
-		if strings.ContainsRune(pattern, '/') {
-			if relPath == "" {
-				continue
-			}
-			subject = relPath
-		}
-		//nolint:errcheck // validate rejects malformed patterns before a scan starts
-		if ok, _ := path.Match(pattern, subject); ok {
-			return true
-		}
-	}
-	return false
+// excludePattern is one Exclude entry, parsed.
+type excludePattern struct {
+	glob     string
+	anchored bool
+	dirOnly  bool
 }
 
-func normalizePattern(pattern string) string {
-	pattern = strings.TrimPrefix(pattern, "./")
-	return strings.TrimPrefix(pattern, "/")
+// parseExclude decides anchoring before it strips leading "./" and "/": those
+// prefixes are what anchor "/*.txt" to the target root.
+func parseExclude(pattern string) excludePattern {
+	dirOnly := strings.HasSuffix(pattern, "/")
+	glob := strings.TrimRight(pattern, "/")
+	anchored := strings.Contains(glob, "/")
+	for {
+		stripped := strings.TrimPrefix(strings.TrimPrefix(glob, "./"), "/")
+		if stripped == glob {
+			break
+		}
+		glob = stripped
+	}
+	return excludePattern{glob: glob, anchored: anchored, dirOnly: dirOnly}
+}
+
+func parseExcludes(patterns []string) []excludePattern {
+	parsed := make([]excludePattern, len(patterns))
+	for i, pattern := range patterns {
+		parsed[i] = parseExclude(pattern)
+	}
+	return parsed
+}
+
+// matches takes relPath slash-separated.
+func (p excludePattern) matches(relPath, name string, isDir bool) bool {
+	if p.glob == "" || (p.dirOnly && !isDir) {
+		return false
+	}
+	subject := name
+	if p.anchored {
+		subject = relPath
+	}
+	//nolint:errcheck // validate rejects malformed patterns before a scan starts
+	ok, _ := path.Match(p.glob, subject)
+	return ok
 }
