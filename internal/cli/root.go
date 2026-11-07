@@ -65,7 +65,9 @@ func report(w io.Writer, err error) int {
 }
 
 // NewRootCmd builds the root command with its own viper instance, so tests and
-// embedders can run it without sharing global configuration state.
+// embedders can run it without sharing global configuration state. A --text
+// run cancelled while waiting for input returns at once, but leaves that read
+// pending on its own goroutine, where it consumes the next chunk of input.
 func NewRootCmd() *cobra.Command {
 	v := viper.New()
 	var configFile string
