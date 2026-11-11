@@ -77,10 +77,7 @@ func (r rootRenamer) renameThroughTemporary(from, to string) error {
 	if err := r.root.Rename(from, temporary); err != nil {
 		return err
 	}
-	err := fs.ErrExist
-	if _, statErr := r.root.Lstat(to); errors.Is(statErr, fs.ErrNotExist) {
-		err = r.root.Rename(temporary, to)
-	}
+	err := r.renameIfAbsent(temporary, to)
 	if err == nil {
 		return nil
 	}
@@ -88,4 +85,17 @@ func (r rootRenamer) renameThroughTemporary(from, to string) error {
 		return fmt.Errorf("%w; entry left as %s: %w", err, temporary, undoErr)
 	}
 	return err
+}
+
+// renameIfAbsent renames from only when Lstat reports the new name as missing,
+// and returns any other Lstat failure as is.
+func (r rootRenamer) renameIfAbsent(from, to string) error {
+	_, err := r.root.Lstat(to)
+	if err == nil {
+		return fs.ErrExist
+	}
+	if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return r.root.Rename(from, to)
 }

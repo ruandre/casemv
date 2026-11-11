@@ -110,11 +110,16 @@ func renameNoReplace(dirfd int, from, to string) error {
 }
 
 // renameIfAbsent narrows the replace window to a few syscalls rather than
-// closing it.
+// closing it. Only ENOENT shows that to is absent: after any other stat
+// failure, such as EIO, rename(2) could still replace an entry that is there.
 func renameIfAbsent(dirfd int, from, to string) error {
 	var st unix.Stat_t
-	if err := unix.Fstatat(dirfd, to, &st, unix.AT_SYMLINK_NOFOLLOW); err == nil {
+	err := unix.Fstatat(dirfd, to, &st, unix.AT_SYMLINK_NOFOLLOW)
+	if err == nil {
 		return unix.EEXIST
+	}
+	if !errors.Is(err, unix.ENOENT) {
+		return err
 	}
 	return unix.Renameat(dirfd, from, dirfd, to)
 }
