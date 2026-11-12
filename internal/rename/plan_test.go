@@ -605,7 +605,7 @@ func TestSymlinkedTargetIsResolved(t *testing.T) {
 }
 
 func TestUndecodableNamesAreRenamedIntact(t *testing.T) {
-	testtree.SkipOnWindows(t, "names are UTF-16, so they cannot hold invalid UTF-8")
+	testtree.SkipUnlessInvalidUTF8Names(t)
 	root := makeTree(t, "Caf\xe9 Menu.txt", "Na\xefve Report.md")
 	apply(t, rename.Options{Root: root}, casing.Kebab)
 

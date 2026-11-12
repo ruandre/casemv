@@ -38,9 +38,15 @@ func runCLI(t *testing.T, stdin string, args ...string) result {
 	return result{out: out.String(), err: err}
 }
 
+// makeTree returns the tree's root with symlinks resolved, as casemv prints it:
+// on macOS the temporary directory is under /var, a symlink to /private/var.
 func makeTree(t *testing.T, spec ...string) string {
 	t.Helper()
-	return testtree.Make(t, spec...)
+	root, err := filepath.EvalSymlinks(testtree.Make(t, spec...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func assertTree(t *testing.T, root string, want ...string) {
@@ -515,7 +521,7 @@ func TestInterruptedRunExitsWithTheSignalCode(t *testing.T) {
 }
 
 func TestUndecodableNameSurvivesTheCLI(t *testing.T) {
-	testtree.SkipOnWindows(t, "names are UTF-16, so they cannot hold invalid UTF-8")
+	testtree.SkipUnlessInvalidUTF8Names(t)
 	root := makeTree(t, "Caf\xe9 Menu.txt")
 	if got := runCLI(t, "", "kebab", root); got.err != nil {
 		t.Fatalf("run: %v", got.err)
