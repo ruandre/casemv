@@ -38,14 +38,15 @@ const argsWithTarget = 2
 // textIncompatibleFlags act on files, which --text never touches.
 var textIncompatibleFlags = []string{"recursive", "dir", "hidden", excludeKey, "dry-run", "quiet", "lower-ext"}
 
-// Execute runs the root command and returns the process exit code. An interrupt
-// cancels the run between renames rather than part-way through one.
+// Execute runs the root command and returns the process exit code. SIGINT,
+// SIGTERM and SIGHUP cancel the run between renames rather than part-way
+// through one.
 func Execute() int {
 	// Go kills a process that writes to a closed stdout pipe unless SIGPIPE is
 	// handled. Ignored, the write fails instead: the renames go on, and the
 	// output error is reported once they are done.
 	signal.Ignore(syscall.SIGPIPE)
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 	// Restore the default handler once the first signal lands, so a second one
 	// still kills a run stuck in a syscall, such as on a hung network mount.

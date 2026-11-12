@@ -69,7 +69,7 @@ echo 'My File' | casemv kebab --text  # my-file
     change racing between the two can still replace an entry. Off Linux it
     can also redirect the rename through a symlink.
 - **Renames run deepest-first**, so a directory is renamed after its contents.
-- **SIGINT/SIGTERM** stops between renames and exits 130.
+- **SIGINT, SIGTERM and SIGHUP** stop the run between renames; casemv exits 130.
 - **Progress** prints each rename after it succeeds. Names that hold control
   characters or invalid UTF-8 print quoted. If stdout closes early, as with
   `| head`, the renames still finish, then casemv reports the write error.

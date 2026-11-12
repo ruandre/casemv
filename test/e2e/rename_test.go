@@ -340,7 +340,8 @@ func runWithStdoutClosedEarly(t *testing.T, args ...string) (exitCode int, stder
 }
 
 func TestCleanInterruptReporting(t *testing.T) {
-	for name, signal := range map[string]os.Signal{"SIGINT": os.Interrupt, "SIGTERM": syscall.SIGTERM} {
+	signals := map[string]os.Signal{"SIGINT": os.Interrupt, "SIGTERM": syscall.SIGTERM, "SIGHUP": syscall.SIGHUP}
+	for name, signal := range signals {
 		t.Run(name, func(t *testing.T) { testCleanInterrupt(t, signal) })
 	}
 }
