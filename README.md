@@ -63,10 +63,11 @@ echo 'My File' | casemv kebab --text  # my-file
 - **Nothing is lost.**
   - Collisions abort before any rename. This covers unchanged entries too, and
     case-folding filesystems, compared the way the kernel compares them.
-  - Each rename stays inside the target. On Linux it uses `RENAME_NOREPLACE`
-    and refuses symlinks on the way. Elsewhere casemv checks, then renames, so
-    a change racing between the two can still replace an entry or redirect
-    through a symlink.
+  - Each rename stays inside the target. On Linux it refuses symlinks on the
+    way and uses `RENAME_NOREPLACE`. Off Linux, and on Linux filesystems
+    without `RENAME_NOREPLACE`, casemv checks the target, then renames, so a
+    change racing between the two can still replace an entry. Off Linux it
+    can also redirect the rename through a symlink.
 - **Renames run deepest-first**, so a directory is renamed after its contents.
 - **SIGINT/SIGTERM** stops between renames and exits 130.
 - **Progress** prints each rename after it succeeds. Names that hold control
