@@ -10,8 +10,11 @@ import (
 // error the renames already applied are left in place; the returned count says
 // how far the plan got.
 //
-// A rename never replaces an existing entry, and never resolves outside Root,
-// even if the tree changed after planning.
+// A rename never resolves outside Root, even if the tree changed after
+// planning. On Linux filesystems with RENAME_NOREPLACE it never replaces an
+// existing entry either. Elsewhere it checks the target, then renames, so a
+// change racing with that check can still replace an entry or, off Linux,
+// redirect the rename through a symlink.
 //
 // onRename, when non-nil, is called after each rename succeeds, so a caller can
 // report progress that reflects what actually happened.

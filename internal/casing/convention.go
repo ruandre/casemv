@@ -13,7 +13,7 @@ type Convention string
 const (
 	Camel          Convention = "camel"     // Renders fooBarBaz.
 	Kebab          Convention = "kebab"     // Renders foo-bar-baz.
-	Lower          Convention = "lower"     // Renders foo_bar baz: lowercased, words left intact.
+	Lower          Convention = "lower"     // Renders foo bar baz: lowercased, words left intact.
 	Pascal         Convention = "pascal"    // Renders FooBarBaz.
 	ScreamingSnake Convention = "screaming" // Renders FOO_BAR_BAZ.
 	Sentence       Convention = "sentence"  // Renders Foo bar baz.
