@@ -79,6 +79,29 @@ func TestTargetDefaultsToTheWorkingDirectory(t *testing.T) {
 	assertTree(t, root, "my_file.txt")
 }
 
+// An unset shell variable, as in casemv kebab "$DIR", must not rename the
+// working directory.
+func TestEmptyArgumentIsAnError(t *testing.T) {
+	tests := map[string][]string{
+		"empty target":                     {"kebab", ""},
+		"empty target with a default":      {"--convention", "kebab", ""},
+		"empty target in text mode":        {"kebab", "", "--text"},
+		"empty convention before a target": {"", "."},
+	}
+	for name, args := range tests {
+		t.Run(name, func(t *testing.T) {
+			root := makeTree(t, "My File.txt")
+			t.Chdir(root)
+
+			got := runCLI(t, "", args...)
+			if got.err == nil || !strings.Contains(got.err.Error(), "empty argument") {
+				t.Errorf("error = %v, want an empty argument error (output %q)", got.err, got.out)
+			}
+			assertTree(t, root, "My File.txt")
+		})
+	}
+}
+
 func TestDryRunLeavesTheTreeUntouched(t *testing.T) {
 	root := makeTree(t, "My File.txt")
 	got := runCLI(t, "", "kebab", root, "--dry-run")

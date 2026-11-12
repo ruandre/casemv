@@ -92,7 +92,8 @@ exclude: ["*.min.js", node_modules]
 
 A convention given as an argument overrides the default. A lone argument naming
 a convention is the convention, anything else is the target, so a directory
-named like a convention needs a path: `casemv ./kebab`.
+named like a convention needs a path: `casemv ./kebab`. An empty argument is an
+error, so `casemv kebab "$DIR"` with `DIR` unset renames nothing.
 
 ## Shell completion
 

@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/spf13/viper"
 
@@ -15,6 +16,8 @@ var errMissingConvention = errors.New(
 	"missing naming convention: pass one as the first argument, or set --convention, " +
 		"CASEMV_CONVENTION, or convention in the config file")
 
+var errEmptyArgument = errors.New("empty argument: omit the target to rename in the working directory")
+
 // positional is the meaning of the command-line arguments. target is empty when none was given.
 type positional struct {
 	convention casing.Convention
@@ -23,8 +26,13 @@ type positional struct {
 
 // parsePositional reads [convention] [target]. A lone argument naming a
 // convention is the convention; otherwise it is the target and fallback, the
-// configured default, supplies the convention.
+// configured default, supplies the convention. An empty argument is an error,
+// not an omitted one: casemv kebab "$DIR" with DIR unset must not rename the
+// working directory.
 func parsePositional(args []string, fallback string) (positional, error) {
+	if slices.Contains(args, "") {
+		return positional{}, errEmptyArgument
+	}
 	switch len(args) {
 	case 0:
 		return withDefault(fallback, "")
