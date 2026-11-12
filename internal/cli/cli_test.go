@@ -668,6 +668,18 @@ func TestTextModeStripsOnlyTheLineTerminator(t *testing.T) {
 	}
 }
 
+// A carriage return ends a line only before a newline, so a last line
+// without one keeps it.
+func TestTextModeKeepsCarriageReturnAtEndOfInput(t *testing.T) {
+	got := runCLI(t, "A\nB\r", "lower", "--text")
+	if got.err != nil {
+		t.Fatalf("run: %v", got.err)
+	}
+	if want := "a\nb\r\n"; got.out != want {
+		t.Errorf("output = %q, want %q", got.out, want)
+	}
+}
+
 func TestTextModeProcessesLineWithoutTrailingNewline(t *testing.T) {
 	got := runCLI(t, "First Line\nSecond Line", "kebab", "--text")
 	if got.err != nil {
