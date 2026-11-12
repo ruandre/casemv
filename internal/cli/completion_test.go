@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,7 +38,11 @@ func complete(t *testing.T, line ...string) completion {
 // descriptions with tabs; none may be offered.
 func testTreeForCompletion(t *testing.T) string {
 	t.Helper()
-	return makeTree(t, "docs/", "src/", ".git/", "notes.txt", "tab\tname/", "new\nline/")
+	spec := []string{"docs/", "src/", ".git/", "notes.txt"}
+	if runtime.GOOS != "windows" { // Windows forbids control characters in names.
+		spec = append(spec, "tab\tname/", "new\nline/")
+	}
+	return makeTree(t, spec...)
 }
 
 func parseCompletion(t *testing.T, out string) completion {

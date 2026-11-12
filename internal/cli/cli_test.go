@@ -455,6 +455,7 @@ func TestRenamesAreReportedAsTheyLand(t *testing.T) {
 
 // A failed run must not leave a listing claiming renames that never happened.
 func TestFailedRunReportsOnlyCompletedRenames(t *testing.T) {
+	testtree.SkipOnWindows(t, "chmod cannot make a directory read-only")
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses directory permissions")
 	}
@@ -514,6 +515,7 @@ func TestInterruptedRunExitsWithTheSignalCode(t *testing.T) {
 }
 
 func TestUndecodableNameSurvivesTheCLI(t *testing.T) {
+	testtree.SkipOnWindows(t, "names are UTF-16, so they cannot hold invalid UTF-8")
 	root := makeTree(t, "Caf\xe9 Menu.txt")
 	if got := runCLI(t, "", "kebab", root); got.err != nil {
 		t.Fatalf("run: %v", got.err)
@@ -860,6 +862,7 @@ func writeConfig(t *testing.T, content string) string {
 // Names come from trees the user may not control; printed raw, escape
 // sequences would drive the terminal and newlines would fake output lines.
 func TestProgressQuotesNamesATerminalWouldInterpret(t *testing.T) {
+	testtree.SkipOnWindows(t, "names cannot hold control characters")
 	const evil = "Evil\x1b]0;pwned\x07Name.txt"
 	const spoof = "Fake\nX.txt -> gone.txt"
 	root := makeTree(t, evil, spoof, "Plain Name.txt")
@@ -921,6 +924,7 @@ func TestReportEscapesQuotedValuesOnce(t *testing.T) {
 
 // A collision report spans lines, one per conflict; names in it must not add any.
 func TestReportKeepsOneLinePerCollision(t *testing.T) {
+	testtree.SkipOnWindows(t, "names cannot hold control characters")
 	root := makeTree(t, "Fake\ncasemv: Dir/My File.txt", "Fake\ncasemv: Dir/my_file.txt")
 	got := runCLI(t, "", "kebab", root, "--recursive")
 	if got.err == nil {
@@ -966,6 +970,7 @@ func TestReportEscapesLineBreaksOfAWrappedCollision(t *testing.T) {
 }
 
 func TestCollisionSourcesAreQuoted(t *testing.T) {
+	testtree.SkipOnWindows(t, "names cannot hold control characters")
 	root := makeTree(t, "My File.txt", "my\nfile.txt")
 
 	got := runCLI(t, "", "kebab", root)
@@ -1114,7 +1119,7 @@ func TestExcludeSources(t *testing.T) {
 		config string
 	}{
 		{"flags", []string{"-e", "Skip Me.txt", "-e", "*.log"}, "", ""},
-		{"environment splits at colons", nil, "Skip Me.txt:*.log", ""},
+		{"environment splits like PATH", nil, "Skip Me.txt" + string(os.PathListSeparator) + "*.log", ""},
 		{"config list", nil, "", "exclude: [Skip Me.txt, '*.log']\n"},
 	}
 	for _, tc := range tests {

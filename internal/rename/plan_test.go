@@ -13,6 +13,7 @@ import (
 
 	"github.com/ruandre/casemv/internal/casing"
 	"github.com/ruandre/casemv/internal/rename"
+	"github.com/ruandre/casemv/internal/testtree"
 )
 
 // build plans against root with given options, failing test on error.
@@ -551,6 +552,7 @@ func TestExcludeDirectoryOnlyPatterns(t *testing.T) {
 }
 
 func TestApplyStopsAtTheFirstFailureAndReportsProgress(t *testing.T) {
+	testtree.SkipOnWindows(t, "chmod cannot make a directory read-only")
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses directory permissions")
 	}
@@ -603,6 +605,7 @@ func TestSymlinkedTargetIsResolved(t *testing.T) {
 }
 
 func TestUndecodableNamesAreRenamedIntact(t *testing.T) {
+	testtree.SkipOnWindows(t, "names are UTF-16, so they cannot hold invalid UTF-8")
 	root := makeTree(t, "Caf\xe9 Menu.txt", "Na\xefve Report.md")
 	apply(t, rename.Options{Root: root}, casing.Kebab)
 
@@ -630,6 +633,7 @@ func TestApplyReportsEachRenameAsItLands(t *testing.T) {
 }
 
 func TestApplyStopsReportingAtTheFailure(t *testing.T) {
+	testtree.SkipOnWindows(t, "chmod cannot make a directory read-only")
 	if os.Geteuid() == 0 {
 		t.Skip("root bypasses directory permissions")
 	}
@@ -668,8 +672,9 @@ func TestCaseOnlyRenameIsNotAConflict(t *testing.T) {
 // case-sensitive filesystem, the same file on a case-folding one.
 func TestTargetsDifferingOnlyByCase(t *testing.T) {
 	root := makeTree(t, "Foo Bar.txt", "foo-bar.TXT")
-	if entries, err := os.ReadDir(root); err != nil || len(entries) != 2 {
-		t.Skip("filesystem folds case; both fixtures are one file")
+	// On a case-folding filesystem the conflict is real: foo-bar.txt is foo-bar.TXT.
+	if _, err := os.Lstat(filepath.Join(root, "FOO BAR.TXT")); err == nil {
+		t.Skip("filesystem folds case")
 	}
 
 	_, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.Kebab)
@@ -792,6 +797,9 @@ func TestLowerExtensionRenamesExtensionOnlyChanges(t *testing.T) {
 
 func TestLowerExtensionCollisionAbortsBeforeAnythingIsRenamed(t *testing.T) {
 	root := makeTree(t, "report.PDF", "report.pdf")
+	if entries, err := os.ReadDir(root); err != nil || len(entries) != 2 {
+		t.Skip("filesystem folds case; both fixtures are one file")
+	}
 	before := snapshot(t, root)
 
 	_, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.LowerExtension{Convention: casing.Kebab})
