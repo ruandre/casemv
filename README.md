@@ -1,7 +1,8 @@
 # casemv
 
-Rename files and directories to a naming convention. Linux. Go port of
-[stdrename](https://github.com/Gadiguibou/stdrename).
+Rename files and directories to a naming convention. Go port of
+[stdrename](https://github.com/Gadiguibou/stdrename). Built for Linux; it also
+runs on macOS and Windows, with weaker guarantees (see [Behaviour](#behaviour)).
 
 ```sh
 go install github.com/ruandre/casemv@latest
@@ -40,6 +41,8 @@ Words split on separators, case humps, and acronyms (`XMLHttpRequest` →
 | `--text`           | Convert stdin lines to stdout                |
 | `--config`         | Config file path                             |
 
+`-h, --help` and `-v, --version` print help and the version.
+
 Exclude patterns use `path.Match`, anchored as in `.gitignore`. A leading or
 inner slash matches the path relative to the target (`/*.txt`, `docs/old`);
 otherwise the base name at any depth. A trailing slash matches directories only
@@ -58,11 +61,15 @@ echo 'My File' | casemv kebab --text  # my-file
 - **Extensions are kept verbatim**: `My File.TXT` → `my-file.TXT`, or
   `my-file.txt` with `--lower-ext`. Directories have no extension:
   `1. Something` → `1-something`.
-- **Hidden stays hidden.** Names with no word characters (`___.txt`) stay as
-  they are. Invalid UTF-8 bytes are kept.
+- **Leading dots are kept**: `.My Notes.TXT` → `.my-notes.TXT`. Names with no
+  word characters (`___.txt`) stay as they are. Invalid UTF-8 bytes are kept.
+- **Symlinks are renamed as files and never followed**, even with `-D`:
+  `Link Dir.v2` → `link-dir.v2`. A trailing-slash exclude does not match them.
+- **`--text` converts each line whole**, with none of these rules:
+  `My File.TXT` → `my-file-txt`, `.env` → `env`, and `___` → an empty line.
 - **Nothing is lost.**
-  - Collisions abort before any rename. This covers unchanged entries too, and
-    case-folding filesystems, compared the way the kernel compares them.
+  - Collisions abort before any rename. This covers entries that keep their
+    names, and names that differ only in case on case-folding filesystems.
     A new name longer than 255 characters aborts the same way.
   - Each rename stays inside the target. On Linux it refuses symlinks on the
     way and uses `RENAME_NOREPLACE`. Off Linux, and on Linux filesystems
@@ -70,7 +77,8 @@ echo 'My File' | casemv kebab --text  # my-file
     change racing between the two can still replace an entry. Off Linux it
     can also redirect the rename through a symlink.
 - **Renames run deepest-first**, so a directory is renamed after its contents.
-- **SIGINT, SIGTERM and SIGHUP** stop the run between renames; casemv exits 130.
+- **Exit status** is 0 on success, 1 on any error, and 130 when SIGINT,
+  SIGTERM or SIGHUP stops the run, which happens between renames.
 - **Progress** prints each rename after it succeeds. Names that hold control
   characters or invalid UTF-8 print quoted. If stdout closes early, as with
   `| head`, the renames still finish, then casemv reports the write error.
@@ -106,6 +114,7 @@ error, so `casemv kebab "$DIR"` with `DIR` unset renames nothing.
 casemv completion bash > ~/.local/share/bash-completion/completions/casemv  # needs bash-completion
 casemv completion zsh > "${fpath[1]}/_casemv"
 casemv completion fish > ~/.config/fish/completions/casemv.fish
+casemv completion powershell >> $PROFILE
 ```
 
 The first argument completes conventions, plus directories when a default
