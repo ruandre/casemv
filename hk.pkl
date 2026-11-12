@@ -1,8 +1,9 @@
-amends "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Config.pkl"
-import "package://github.com/jdx/hk/releases/download/v2.8.2/hk@2.8.2#/Builtins.pkl"
+amends "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Config.pkl"
+import "package://github.com/jdx/hk/releases/download/v2.12.0/hk@2.12.0#/Builtins.pkl"
 
 // Tools resolve through mise (HK_MISE=1), so hooks use the versions pinned in mise.toml.
-// hk serves its own package from its binary (checksummed in mise.lock); a ::sha256: pin makes hk 2.8.2 fail.
+// hk serves its own package from its binary (checksummed in mise.lock), and that archive differs from
+// the published zip, so a ::sha256: pin fails with "package archive checksum mismatch" (hk 2.12.0).
 
 exclude = List(
   ".agents/**",

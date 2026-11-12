@@ -3,7 +3,7 @@
 # Test image for casemv. The suites here touch real files, create awkward
 # names, and revoke directory permissions, so they run against the container's
 # own filesystem rather than the host's. Build context is the repository root.
-FROM golang:1.27-alpine@sha256:4c9fe60190a2a3350ddc51de80d0224b8a6698d12bdfc999fee45ea9d6c46dbc
+FROM golang:1.27-alpine@sha256:eb61c3873c97416fff0116553fff65d67a3549f72e11d9758849a689cdd8b523
 
 ENV CGO_ENABLED=0 \
     GOCACHE=/gocache \
