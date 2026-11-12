@@ -1,9 +1,9 @@
 name: CI
 
+# Pull requests are disabled on the repository, so only pushes to main run CI.
 on:
   push:
     branches: [main]
-  pull_request:
 
 permissions:
   contents: read
