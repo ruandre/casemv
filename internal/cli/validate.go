@@ -11,6 +11,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+// cobraFlags are flags cobra adds for itself. BindPFlags binds them like
+// settings, but they are not: a config key is unknown, and an environment
+// variable is never read, so a stray CASEMV_VERSION cannot break a run.
+var cobraFlags = []string{"help", "version"}
+
 // validateSettings fails on values viper would silently coerce: GetBool reads
 // anything unparsable as false, GetString and GetStringSlice read a mistyped
 // value as empty, and unknown config keys are ignored. Keys are checked in
@@ -19,8 +24,11 @@ func validateSettings(v *viper.Viper, cmd *cobra.Command) error {
 	keys := v.AllKeys()
 	slices.Sort(keys)
 	for _, key := range keys {
+		if slices.Contains(cobraFlags, key) && !v.InConfig(key) {
+			continue
+		}
 		flag := cmd.Flags().Lookup(key)
-		if flag == nil {
+		if flag == nil || slices.Contains(cobraFlags, key) {
 			return fmt.Errorf("unknown config key %q", key)
 		}
 		if err := checkSource(v, key); err != nil {

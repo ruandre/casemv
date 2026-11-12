@@ -814,6 +814,32 @@ func TestUnknownConfigKeyIsAnError(t *testing.T) {
 	assertTree(t, root, "My File.txt")
 }
 
+// Cobra adds --help and --version; neither is a setting.
+func TestHelpAndVersionAreNotSettings(t *testing.T) {
+	for _, key := range []string{"help", "version"} {
+		t.Run(key+" config key", func(t *testing.T) {
+			root := makeTree(t, "My File.txt")
+			config := writeConfig(t, key+": true\n")
+
+			got := runCLI(t, "", "kebab", root, "--config", config)
+
+			if got.err == nil || !strings.Contains(got.err.Error(), fmt.Sprintf("unknown config key %q", key)) {
+				t.Errorf("error = %v, want an unknown key error", got.err)
+			}
+			assertTree(t, root, "My File.txt")
+		})
+		t.Run(key+" environment variable", func(t *testing.T) {
+			root := makeTree(t, "My File.txt")
+			t.Setenv("CASEMV_"+strings.ToUpper(key), "1.2.3")
+
+			if got := runCLI(t, "", "kebab", root); got.err != nil {
+				t.Fatalf("run: %v (output %q)", got.err, got.out)
+			}
+			assertTree(t, root, "my-file.txt")
+		})
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "casemv.yaml")
