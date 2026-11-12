@@ -25,7 +25,8 @@ func displayPath(path string) string {
 // its line breaks, and is printed as is: CollisionError.Error quotes every
 // variable field with %q, so its newlines only separate conflicts, and
 // escaping again would double its backslashes. Text wrapping it may hold raw
-// paths, so a wrapped one is escaped whole.
+// paths, so a wrapped one is escaped whole. Every other error is escaped
+// whole too, so it quotes values with plain quotes, not %q.
 func errorText(err error) string {
 	collision, ok := errors.AsType[*rename.CollisionError](err)
 	if !ok || err.Error() != collision.Error() {

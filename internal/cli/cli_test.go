@@ -896,6 +896,29 @@ func TestReportEscapesControlCharactersAndLineBreaks(t *testing.T) {
 	}
 }
 
+// Report escapes each value once; quoted with %q first, it would be twice.
+func TestReportEscapesQuotedValuesOnce(t *testing.T) {
+	tests := []struct {
+		args []string
+		want string
+	}{
+		{[]string{`C:\x`, "."}, `casemv: unknown naming convention "C:\\x"`},
+		{[]string{"kebab", ".", "--exclude", "[\t"}, `casemv: invalid exclude pattern "[\t"`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Chdir(t.TempDir())
+			got := runCLI(t, "", tc.args...)
+
+			var out bytes.Buffer
+			cli.Report(&out, got.err)
+			if !strings.HasPrefix(out.String(), tc.want) {
+				t.Errorf("output = %q, want prefix %q", out.String(), tc.want)
+			}
+		})
+	}
+}
+
 // A collision report spans lines, one per conflict; names in it must not add any.
 func TestReportKeepsOneLinePerCollision(t *testing.T) {
 	root := makeTree(t, "Fake\ncasemv: Dir/My File.txt", "Fake\ncasemv: Dir/my_file.txt")

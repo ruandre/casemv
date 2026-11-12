@@ -29,7 +29,7 @@ func validateSettings(v *viper.Viper, cmd *cobra.Command) error {
 		}
 		flag := cmd.Flags().Lookup(key)
 		if flag == nil || slices.Contains(cobraFlags, key) {
-			return fmt.Errorf("unknown config key %q", key)
+			return fmt.Errorf(`unknown config key "%s"`, key) // Not %q: errorText escapes.
 		}
 		if err := checkSource(v, key); err != nil {
 			return err
@@ -76,7 +76,7 @@ func checkBool(key string, value any) error {
 	}
 	text := fmt.Sprint(value)
 	if _, err := strconv.ParseBool(text); err != nil {
-		return fmt.Errorf("invalid boolean %q for %s: want true or false", text, key)
+		return fmt.Errorf(`invalid boolean "%s" for %s: want true or false`, text, key) // Not %q: errorText escapes.
 	}
 	return nil
 }

@@ -38,7 +38,8 @@ func ParseConvention(name string) (Convention, error) {
 			return c, nil
 		}
 	}
-	return "", fmt.Errorf("unknown naming convention %q (want one of: %s)", name, Names())
+	// Not %q: the CLI escapes error text for the terminal, and would escape again.
+	return "", fmt.Errorf(`unknown naming convention "%s" (want one of: %s)`, name, Names())
 }
 
 // Names returns the supported convention names, comma separated.

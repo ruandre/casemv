@@ -30,10 +30,11 @@ func (o Options) validate() error {
 	for _, pattern := range o.Exclude {
 		glob := parseExclude(pattern).glob
 		if strings.Contains(glob, "**") {
-			return fmt.Errorf("invalid exclude pattern %q: ** is not supported; * matches within one path segment", pattern)
+			// Not %q: the CLI escapes error text for the terminal, and would escape again.
+			return fmt.Errorf(`invalid exclude pattern "%s": ** is not supported; * matches within one path segment`, pattern)
 		}
 		if _, err := path.Match(glob, "x"); err != nil {
-			return fmt.Errorf("invalid exclude pattern %q: %w", pattern, err)
+			return fmt.Errorf(`invalid exclude pattern "%s": %w`, pattern, err)
 		}
 	}
 	return nil
