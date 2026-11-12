@@ -41,6 +41,10 @@ var textIncompatibleFlags = []string{"recursive", "dir", "hidden", excludeKey, "
 // Execute runs the root command and returns the process exit code. An interrupt
 // cancels the run between renames rather than part-way through one.
 func Execute() int {
+	// Go kills a process that writes to a closed stdout pipe unless SIGPIPE is
+	// handled. Ignored, the write fails instead: the renames go on, and the
+	// output error is reported once they are done.
+	signal.Ignore(syscall.SIGPIPE)
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	// Restore the default handler once the first signal lands, so a second one

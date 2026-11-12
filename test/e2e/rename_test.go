@@ -285,6 +285,60 @@ func TestRuntimeFailureHidesUsage(t *testing.T) {
 	}
 }
 
+// A reader that stops early, such as head, must not stop the run part-way.
+func TestClosedStdoutStillRenamesEverything(t *testing.T) {
+	// Enough progress output to fill the pipe buffer, so casemv is still
+	// writing when the reader goes away.
+	const files = 5000
+	root := t.TempDir()
+	for i := range files {
+		if err := os.WriteFile(filepath.Join(root, "My File "+strconv.Itoa(i)), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	exitCode, stderr := runWithStdoutClosedEarly(t, "kebab", root)
+
+	// -1 means a signal killed it.
+	if exitCode != 1 {
+		t.Errorf("exit code = %d, want 1", exitCode)
+	}
+	if !strings.Contains(stderr, "broken pipe") {
+		t.Errorf("stderr = %q, want a broken pipe error", stderr)
+	}
+	for _, path := range treePaths(t, root) {
+		if strings.Contains(path, " ") {
+			t.Fatalf("%q was not renamed", path)
+		}
+	}
+}
+
+// runWithStdoutClosedEarly closes casemv's stdout after its first byte.
+func runWithStdoutClosedEarly(t *testing.T, args ...string) (exitCode int, stderr string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), binary, args...)
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var errOut bytes.Buffer
+	cmd.Stderr = &errOut
+	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
+	if err := cmd.Start(); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	if _, err := stdout.Read(make([]byte, 1)); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if err := stdout.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := cmd.Wait(); err != nil && !errors.As(err, new(*exec.ExitError)) {
+		t.Fatalf("wait: %v", err)
+	}
+	return cmd.ProcessState.ExitCode(), errOut.String()
+}
+
 func TestCleanInterruptReporting(t *testing.T) {
 	for name, signal := range map[string]os.Signal{"SIGINT": os.Interrupt, "SIGTERM": syscall.SIGTERM} {
 		t.Run(name, func(t *testing.T) { testCleanInterrupt(t, signal) })
