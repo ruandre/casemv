@@ -49,7 +49,7 @@ description = "Run golangci-lint; extra flags (e.g. --fix) go to golangci-lint"
 run = "golangci-lint run ./..."
 
 [tasks.vet-cross]
-description = "Vet the non-Linux build, which no test run covers"
+description = "Vet the darwin and windows builds from any host"
 run = ["GOOS=darwin go vet ./...", "GOOS=windows go vet ./..."]
 
 [tasks.vuln]
