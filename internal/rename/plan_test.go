@@ -167,6 +167,35 @@ func TestExcludeSkipsMatchingNamesAndSubtrees(t *testing.T) {
 	}
 }
 
+// Separators lengthen a name. One past every filesystem's limit must fail the
+// plan, not the run part-way through.
+func TestOverlongNewNameAbortsBeforeAnythingIsRenamed(t *testing.T) {
+	long := strings.Repeat("aB", 120) + ".txt"
+	root := makeTree(t, "a A.txt", long)
+
+	plan, err := rename.Build(t.Context(), rename.Options{Root: root}, casing.Kebab)
+
+	if err == nil || !strings.Contains(err.Error(), "nothing was renamed") {
+		t.Fatalf("Build error = %v, want a name length error", err)
+	}
+	if !plan.IsEmpty() {
+		t.Errorf("plan = %+v, want empty", plan)
+	}
+	assertTree(t, root, "a A.txt", long)
+}
+
+// A name the convention leaves at 255 characters is not refused.
+func TestNewNameOfTheMaximumLengthIsPlanned(t *testing.T) {
+	name := "My" + strings.Repeat("a", 249) + ".TXT"
+	root := makeTree(t, name)
+
+	plan := build(t, rename.Options{Root: root}, casing.Kebab)
+
+	if len(plan.Renames) != 1 {
+		t.Errorf("plan = %+v, want one rename", plan)
+	}
+}
+
 func TestCollisionAbortsBeforeAnythingIsRenamed(t *testing.T) {
 	root := makeTree(t, "My File.txt", "my_file.txt", "Untouched.txt")
 	before := snapshot(t, root)

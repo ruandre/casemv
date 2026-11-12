@@ -63,6 +63,7 @@ echo 'My File' | casemv kebab --text  # my-file
 - **Nothing is lost.**
   - Collisions abort before any rename. This covers unchanged entries too, and
     case-folding filesystems, compared the way the kernel compares them.
+    A new name longer than 255 characters aborts the same way.
   - Each rename stays inside the target. On Linux it refuses symlinks on the
     way and uses `RENAME_NOREPLACE`. Off Linux, and on Linux filesystems
     without `RENAME_NOREPLACE`, casemv checks the target, then renames, so a

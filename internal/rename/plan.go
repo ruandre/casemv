@@ -3,9 +3,17 @@ package rename
 import (
 	"cmp"
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
+	"unicode/utf8"
 )
+
+// maxNameRunes is a limit every common filesystem enforces: most Linux ones
+// allow 255 bytes, Windows and macOS ones 255 UTF-16 code units, and a name of
+// more than 255 runes exceeds both. A shorter name can still be too long in
+// bytes; its rename then fails when it runs.
+const maxNameRunes = 255
 
 // Namer gives the name an entry should have; casing.Convention and
 // casing.LowerExtension implement it.
@@ -34,7 +42,8 @@ func (p Plan) IsEmpty() bool { return len(p.Renames) == 0 }
 // when its turn comes.
 //
 // Target-name collisions are detected up front: Build returns *CollisionError
-// and an empty plan rather than renaming part of the tree.
+// and an empty plan rather than renaming part of the tree. A new name longer
+// than maxNameRunes fails the plan the same way.
 func Build(ctx context.Context, opts Options, namer Namer) (Plan, error) {
 	if err := opts.validate(); err != nil {
 		return Plan{}, err
@@ -54,6 +63,9 @@ func Build(ctx context.Context, opts Options, namer Namer) (Plan, error) {
 		changed[e.path] = newName
 		pending = append(pending, e)
 	}
+	if err := checkNameLengths(pending, changed); err != nil {
+		return Plan{}, err
+	}
 	if err := checkCollisions(t, changed); err != nil {
 		return Plan{}, err
 	}
@@ -64,6 +76,16 @@ func Build(ctx context.Context, opts Options, namer Namer) (Plan, error) {
 		renames[i] = Rename{From: e.path, To: filepath.Join(e.dir, changed[e.path])}
 	}
 	return Plan{Root: t.root, Renames: renames}, nil
+}
+
+func checkNameLengths(pending []entry, changed map[string]string) error {
+	for _, e := range pending {
+		if n := utf8.RuneCountInString(changed[e.path]); n > maxNameRunes {
+			return fmt.Errorf("new name for %s would be %d characters, over the limit of %d; nothing was renamed",
+				e.path, n, maxNameRunes)
+		}
+	}
+	return nil
 }
 
 func deepestFirst(a, b entry) int {
