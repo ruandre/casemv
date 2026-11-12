@@ -86,7 +86,7 @@ func BenchmarkApplyDeepTree(b *testing.B) {
 			spec = append(spec, fmt.Sprintf("%sFile %d.txt", dir, f))
 		}
 	}
-	for range b.N {
+	for b.Loop() {
 		b.StopTimer()
 		root := makeTree(b, spec...)
 		plan, err := rename.Build(b.Context(), rename.Options{Root: root, Recursive: true}, casing.Kebab)
