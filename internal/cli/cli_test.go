@@ -24,18 +24,10 @@ type result struct {
 	err error
 }
 
-// runCLI executes the root command in an isolated working directory so that
-// neither a stray ./casemv.yaml nor the real user config directory is read.
+// runCLI executes the root command in process. TestMain keeps the host's
+// config and environment out of it.
 func runCLI(t *testing.T, stdin string, args ...string) result {
 	t.Helper()
-	return runCLIWithConfigHome(t, t.TempDir(), stdin, args...)
-}
-
-// runCLIWithConfigHome runs the root command with configHome as XDG_CONFIG_HOME.
-func runCLIWithConfigHome(t *testing.T, configHome, stdin string, args ...string) result {
-	t.Helper()
-	t.Setenv("XDG_CONFIG_HOME", configHome)
-
 	var out bytes.Buffer
 	cmd := cli.NewRootCmd()
 	cmd.SetArgs(args)
@@ -199,15 +191,15 @@ func TestConfigFileSuppliesDefaults(t *testing.T) {
 // one of them over casemv.yaml.
 func TestUserConfigIsOnlyCasemvYAML(t *testing.T) {
 	root := makeTree(t, "Sub Dir/My File.txt")
-	configHome := configHomeWith(t, "recursive: true\n")
+	configDir := withUserConfig(t, "recursive: true\n")
 	others := map[string]string{"casemv.json": `{"dir": true}`, "casemv.yml": "dir: true\n", "casemv.toml": "dir = true\n"}
 	for name, content := range others {
-		if err := os.WriteFile(filepath.Join(configHome, "casemv", name), []byte(content), 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(configDir, "casemv", name), []byte(content), 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	if got := runCLIWithConfigHome(t, configHome, "", "kebab", root); got.err != nil {
+	if got := runCLI(t, "", "kebab", root); got.err != nil {
 		t.Fatalf("run: %v (output %q)", got.err, got.out)
 	}
 	assertTree(t, root, "Sub Dir/", "Sub Dir/my-file.txt")
@@ -371,7 +363,6 @@ func (failingReader) Read([]byte) (int, error) { return 0, errors.New("input tru
 
 func runWith(t *testing.T, stdin io.Reader, stdout io.Writer, args ...string) error {
 	t.Helper()
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	cmd := cli.NewRootCmd()
 	cmd.SetArgs(args)
 	cmd.SetOut(stdout)
@@ -417,7 +408,6 @@ func TestExecuteReturnsProcessExitCodes(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 			root := makeTree(t, "My File.txt")
 			t.Chdir(t.TempDir())
 
@@ -509,7 +499,6 @@ func TestInterruptedRunExitsWithTheSignalCode(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	var out bytes.Buffer
 	cmd := cli.NewRootCmd()
 	cmd.SetArgs([]string{"kebab", root})
@@ -612,7 +601,8 @@ func TestTextModeIgnoresRenameDefaults(t *testing.T) {
 			}
 			args := append([]string{"kebab", "--text"}, tc.args...)
 
-			got := runCLIWithConfigHome(t, configHomeWith(t, tc.config), "My File.TXT\n", args...)
+			withUserConfig(t, tc.config)
+			got := runCLI(t, "My File.TXT\n", args...)
 
 			if got.err != nil {
 				t.Fatalf("run: %v", got.err)
@@ -641,7 +631,8 @@ func TestTextModeIsCommandLineOnly(t *testing.T) {
 			}
 			root := makeTree(t, "My File.txt")
 
-			got := runCLIWithConfigHome(t, configHomeWith(t, tc.config), "", "kebab", root)
+			withUserConfig(t, tc.config)
+			got := runCLI(t, "", "kebab", root)
 
 			if want := `"text" cannot be set`; got.err == nil || !strings.Contains(got.err.Error(), want) {
 				t.Errorf("error = %v, want substring %q", got.err, want)
@@ -746,7 +737,6 @@ func TestInterruptedRunDoesNotWrapError(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	var out bytes.Buffer
 	cmd := cli.NewRootCmd()
 	cmd.SetArgs([]string{"kebab", root})
@@ -1022,7 +1012,6 @@ func TestTextModeWritesEachLineBeforeWaitingForMore(t *testing.T) {
 
 // A read blocked on idle input ignores signals; cancelling must not wait for it.
 func TestTextModeStopsWhileWaitingForInput(t *testing.T) {
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 	stdin, feed := io.Pipe()
 	t.Cleanup(func() {
 		if err := feed.Close(); err != nil {

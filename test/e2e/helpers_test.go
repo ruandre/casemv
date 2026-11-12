@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 
@@ -27,8 +28,7 @@ func casemv(t *testing.T, stdin string, args ...string) invocation {
 	cmd.Stdin = strings.NewReader(stdin)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
-	// Keep the run deterministic regardless of the host's config or environment.
-	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
+	cmd.Env = isolatedEnv(t.TempDir())
 
 	err := cmd.Run()
 	var exit *exec.ExitError
@@ -39,6 +39,16 @@ func casemv(t *testing.T, stdin string, args ...string) invocation {
 		t.Fatalf("run %s %v: %v", binary, args, err)
 	}
 	return invocation{stdout: stdout.String(), stderr: stderr.String(), exitCode: cmd.ProcessState.ExitCode()}
+}
+
+// isolatedEnv is the host environment without CASEMV_* variables, and with
+// configHome as XDG_CONFIG_HOME, so neither the host's settings nor its user
+// config reach casemv.
+func isolatedEnv(configHome string, extra ...string) []string {
+	env := slices.DeleteFunc(os.Environ(), func(entry string) bool {
+		return strings.HasPrefix(entry, "CASEMV_")
+	})
+	return append(env, append([]string{"XDG_CONFIG_HOME=" + configHome}, extra...)...)
 }
 
 func (i invocation) requireSuccess(t *testing.T) invocation {

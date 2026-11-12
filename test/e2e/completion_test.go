@@ -119,10 +119,8 @@ func runShell(t *testing.T, shell, config string, args ...string) []string {
 
 	cmd := exec.CommandContext(t.Context(), shell, args...)
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(),
-		"XDG_CONFIG_HOME="+configHome,
-		"PATH="+filepath.Dir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"),
-	)
+	cmd.Env = isolatedEnv(configHome,
+		"PATH="+filepath.Dir(binary)+string(os.PathListSeparator)+os.Getenv("PATH"))
 	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("%s %q: %v", shell, args, err)

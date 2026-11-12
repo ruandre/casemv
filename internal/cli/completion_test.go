@@ -2,8 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"os"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -24,10 +22,10 @@ type completion struct {
 
 // complete asks for completions of the last word in line, from a working
 // directory holding directories docs, src, and .git, and file notes.txt.
-func complete(t *testing.T, configHome string, line ...string) completion {
+func complete(t *testing.T, line ...string) completion {
 	t.Helper()
 	t.Chdir(testTreeForCompletion(t))
-	got := runCLIWithConfigHome(t, configHome, "", append([]string{"__complete"}, line...)...)
+	got := runCLI(t, "", append([]string{"__complete"}, line...)...)
 	if got.err != nil {
 		t.Fatalf("__complete %q: %v (output %q)", line, got.err, got.out)
 	}
@@ -59,20 +57,6 @@ func parseCompletion(t *testing.T, out string) completion {
 	}
 	t.Fatalf("no directive line in completion output %q", out)
 	return c
-}
-
-// configHomeWith returns an XDG_CONFIG_HOME whose casemv config holds content.
-func configHomeWith(t *testing.T, content string) string {
-	t.Helper()
-	home := t.TempDir()
-	dir := filepath.Join(home, "casemv")
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dir, "casemv.yaml"), []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return home
 }
 
 func TestCompletion(t *testing.T) {
@@ -120,12 +104,11 @@ func TestCompletion(t *testing.T) {
 			for key, value := range tc.env {
 				t.Setenv(key, value)
 			}
-			configHome := t.TempDir()
 			if tc.config != "" {
-				configHome = configHomeWith(t, tc.config)
+				withUserConfig(t, tc.config)
 			}
 
-			got := complete(t, configHome, tc.line...)
+			got := complete(t, tc.line...)
 
 			if !slices.Equal(got.values, tc.want.values) || got.directive != tc.want.directive {
 				t.Errorf("__complete %q = %q %v, want %q %v", tc.line, got.values, got.directive, tc.want.values, tc.want.directive)
@@ -135,10 +118,10 @@ func TestCompletion(t *testing.T) {
 }
 
 func TestCompletionScriptsWithAConfigFile(t *testing.T) {
-	configHome := configHomeWith(t, "convention: kebab\nlower-ext: true\n")
+	withUserConfig(t, "convention: kebab\nlower-ext: true\n")
 	for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
 		t.Run(shell, func(t *testing.T) {
-			got := runCLIWithConfigHome(t, configHome, "", "completion", shell)
+			got := runCLI(t, "", "completion", shell)
 			if got.err != nil {
 				t.Fatalf("completion %s: %v (output %q)", shell, got.err, got.out)
 			}
@@ -209,7 +192,8 @@ func TestOtherShellScriptsAreCobras(t *testing.T) {
 }
 
 func TestFirstArgumentNeverOffersSubcommands(t *testing.T) {
-	got := complete(t, configHomeWith(t, "convention: kebab\n"), "c")
+	withUserConfig(t, "convention: kebab\n")
+	got := complete(t, "c")
 	for _, unwanted := range []string{"completion", "help"} {
 		if slices.Contains(got.values, unwanted) {
 			t.Errorf("completions %q offer subcommand %q", got.values, unwanted)

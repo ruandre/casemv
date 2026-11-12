@@ -222,7 +222,7 @@ func TestWorkingDirectoryConfigIsIgnored(t *testing.T) {
 
 	cmd := exec.CommandContext(t.Context(), binary, "kebab", ".")
 	cmd.Dir = root
-	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
+	cmd.Env = isolatedEnv(t.TempDir())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("run: %v\n%s", err, out)
 	}
@@ -323,7 +323,7 @@ func runWithStdoutClosedEarly(t *testing.T, args ...string) (exitCode int, stder
 	}
 	var errOut bytes.Buffer
 	cmd.Stderr = &errOut
-	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
+	cmd.Env = isolatedEnv(t.TempDir())
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
 	}
@@ -405,7 +405,7 @@ func startTextMode(t *testing.T) textProcess {
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
-	cmd.Env = append(os.Environ(), "XDG_CONFIG_HOME="+t.TempDir())
+	cmd.Env = isolatedEnv(t.TempDir())
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start: %v", err)
 	}
