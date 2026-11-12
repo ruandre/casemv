@@ -18,7 +18,7 @@ local linters = new Mapping<String, Step> {
   ["typos"] = Builtins.typos
   ["secrets"] = Builtins.betterleaks
   ["taplo"] = Builtins.taplo
-  ["actionlint"] = Builtins.actionlint
+  ["jactionlint"] = Builtins.jactionlint
   ["go-mod-tidy"] = Builtins.gomod_tidy
   // Formatters (gofumpt, goimports, gci) come from .golangci.yml.
   ["golangci-lint-fmt"] = Builtins.golangci_lint_fmt

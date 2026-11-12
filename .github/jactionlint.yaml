@@ -1,0 +1,2 @@
+# Strictest profile: the workflow is small, so every check is cheap to meet.
+profile: pedantic
