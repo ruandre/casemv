@@ -195,6 +195,24 @@ func TestConfigFileSuppliesDefaults(t *testing.T) {
 	assertTree(t, root, "sub-dir/", "sub-dir/my-file.txt")
 }
 
+// Viper would otherwise read casemv.json, casemv.toml and the rest, and pick
+// one of them over casemv.yaml.
+func TestUserConfigIsOnlyCasemvYAML(t *testing.T) {
+	root := makeTree(t, "Sub Dir/My File.txt")
+	configHome := configHomeWith(t, "recursive: true\n")
+	others := map[string]string{"casemv.json": `{"dir": true}`, "casemv.yml": "dir: true\n", "casemv.toml": "dir = true\n"}
+	for name, content := range others {
+		if err := os.WriteFile(filepath.Join(configHome, "casemv", name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if got := runCLIWithConfigHome(t, configHome, "", "kebab", root); got.err != nil {
+		t.Fatalf("run: %v (output %q)", got.err, got.out)
+	}
+	assertTree(t, root, "Sub Dir/", "Sub Dir/my-file.txt")
+}
+
 // A casemv.yaml in the working directory must not be read: an untrusted
 // directory could otherwise escalate a top-level rename into a recursive,
 // hidden-inclusive one that rewrites .git.

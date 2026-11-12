@@ -78,7 +78,10 @@ echo 'My File' | casemv kebab --text  # my-file
 
 Order: flags, then `CASEMV_<FLAG>` environment variables (e.g.
 `CASEMV_DRY_RUN`), then the config file: `--config`, else `CASEMV_CONFIG`, else
-`$XDG_CONFIG_HOME/casemv/casemv.yaml`. The working directory is never searched.
+`casemv/casemv.yaml` in the user config directory: `$XDG_CONFIG_HOME` or
+`~/.config` on Linux, `~/Library/Application Support` on macOS, `%AppData%` on
+Windows. No other file name or format is read, and the working directory is
+never searched.
 Every flag except `--text` has a `CASEMV_<FLAG>` variable, and every one except
 `--text` and `--config` has a config key: `--text` is command line only.
 Unknown keys and mistyped values are errors. `CASEMV_EXCLUDE` separates

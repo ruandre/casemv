@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -107,7 +108,7 @@ func NewRootCmd() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&configFile, configKey, "",
-		"config file (default: $CASEMV_CONFIG, else $XDG_CONFIG_HOME/casemv/casemv.yaml)")
+		"config file (default: $CASEMV_CONFIG, else casemv/casemv.yaml in the user config directory)")
 	flags.StringP(conventionKey, "c", "", "convention to use when no convention argument is given")
 	flags.BoolP("recursive", "r", false, "rename entries in subdirectories as well")
 	flags.BoolP("dir", "D", false, "rename directories as well as files")
@@ -138,22 +139,7 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command, configFile string) error {
 		return fmt.Errorf("bind flags: %w", err)
 	}
 
-	configFile = cmp.Or(configFile, os.Getenv(envPrefix+"_CONFIG"))
-
-	if configFile != "" {
-		v.SetConfigFile(configFile)
-	} else {
-		// Deliberately not the working directory: a casemv.yaml in a
-		// directory you did not author could silently turn a top-level rename
-		// into a recursive, hidden-inclusive one. Project-local config must be
-		// opted into with --config.
-		v.SetConfigName(configName)
-		if dir, err := os.UserConfigDir(); err == nil {
-			v.AddConfigPath(filepath.Join(dir, configName))
-		}
-	}
-
-	if err := v.ReadInConfig(); err != nil && !isMissingDefaultConfig(err, configFile) {
+	if err := readConfig(v, cmp.Or(configFile, os.Getenv(envPrefix+"_CONFIG"))); err != nil {
 		return fmt.Errorf("read config: %w", err)
 	}
 	if err := validateSettings(v, cmd); err != nil {
@@ -162,11 +148,26 @@ func loadConfig(v *viper.Viper, cmd *cobra.Command, configFile string) error {
 	return validateDefaultConvention(v)
 }
 
-// isMissingDefaultConfig reports absent optional config; a file named by
-// --config or CASEMV_CONFIG must exist.
-func isMissingDefaultConfig(err error, configFile string) bool {
-	var notFound viper.ConfigFileNotFoundError
-	return configFile == "" && (errors.As(err, &notFound) || errors.Is(err, os.ErrNotExist))
+// readConfig reads configFile, which must exist when named. Otherwise it reads
+// casemv.yaml in the user config directory, if there is one. Deliberately not
+// the working directory: a casemv.yaml in a directory you did not author could
+// silently turn a top-level rename into a recursive, hidden-inclusive one.
+func readConfig(v *viper.Viper, configFile string) error {
+	if configFile != "" {
+		v.SetConfigFile(configFile)
+		return v.ReadInConfig()
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return nil //nolint:nilerr // no user config directory: no default config to read
+	}
+	// SetConfigName would also read casemv.json, casemv.toml and others, and
+	// prefer them to casemv.yaml.
+	v.SetConfigFile(filepath.Join(dir, configName, configName+".yaml"))
+	if err := v.ReadInConfig(); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func resolveSettings(v *viper.Viper, cmd *cobra.Command, args []string) (settings, error) {
